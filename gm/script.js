@@ -14,41 +14,71 @@
 
 jQuery.noConflict();
 
+var SM_GLOBALS = {
+    chokePoints: null
+};
+
+function timedChunk(items, process, context, callback){
+    var todo = items.concat();   //create a clone of the original
+    var count = 0;
+    setTimeout(function(){
+
+        var start = +new Date();
+
+        do {
+            process.call(context, todo.shift(), count);
+            count++;
+        } while (todo.length > 0 && (+new Date() - start < 50));
+
+        if (todo.length > 0){
+            setTimeout(arguments.callee, 25);
+        } else {
+            callback(items);
+        }
+    }, 25);
+}
+
 var territoriesObj = window.territories;
-var dummyChokePointData = "[{\"territoryId\": \"129\", \"count\": 4099}, {\"territoryId\": \"73\", \"count\": 3438}, {\"territoryId\": \"77\", \"count\": 3358}, {\"territoryId\": \"142\", \"count\": 2798}, {\"territoryId\": \"94\", \"count\": 2666}, {\"territoryId\": \"168\", \"count\": 2639}, {\"territoryId\": \"22\", \"count\": 2528}, {\"territoryId\": \"49\", \"count\": 2487}, {\"territoryId\": \"114\", \"count\": 2469}, {\"territoryId\": \"133\", \"count\": 2460}, {\"territoryId\": \"153\", \"count\": 2382}, {\"territoryId\": \"147\", \"count\": 2377}, {\"territoryId\": \"74\", \"count\": 2332}, {\"territoryId\": \"183\", \"count\": 2330}, {\"territoryId\": \"186\", \"count\": 2260}, {\"territoryId\": \"65\", \"count\": 2258}, {\"territoryId\": \"106\", \"count\": 2255}, {\"territoryId\": \"107\", \"count\": 2239}, {\"territoryId\": \"115\", \"count\": 2222}, {\"territoryId\": \"34\", \"count\": 2178}, {\"territoryId\": \"185\", \"count\": 2149}, {\"territoryId\": \"86\", \"count\": 2147}, {\"territoryId\": \"85\", \"count\": 2112}, {\"territoryId\": \"95\", \"count\": 2095}, {\"territoryId\": \"152\", \"count\": 2060}, {\"territoryId\": \"83\", \"count\": 2060}, {\"territoryId\": \"180\", \"count\": 2035}, {\"territoryId\": \"21\", \"count\": 2023}, {\"territoryId\": \"31\", \"count\": 1983}, {\"territoryId\": \"17\", \"count\": 1960}, {\"territoryId\": \"59\", \"count\": 1950}, {\"territoryId\": \"37\", \"count\": 1874}, {\"territoryId\": \"82\", \"count\": 1843}, {\"territoryId\": \"151\", \"count\": 1829}, {\"territoryId\": \"64\", \"count\": 1791}]";
-dummyChokePointData = JSON.parse(dummyChokePointData);
-console.log(dummyChokePointData);
 
-var mapImage = jQuery('#map_image');
-var canvas = jQuery('#m_canvas').attr('width', mapImage.attr('width')).attr('height', mapImage.attr('height'));
-var ctx = canvas.get(0).getContext('2d');
+var $button = jQuery('<div/>').addClass('control_panel_table').html([
+        '<table style="padding-right: 5px; padding-left:5px" id="show_all_borders"><tr><td>',
+            '<table class="button_table"><tr>',
+                '<td class="button_table_left"></td>',
+                '<td class="button_text">SHOW CHOKE POINTS</td>',
+                '<td class="button_table_right"></td>',
+            '</tr></table>',
+        '</td></tr></table>'
+    ].join('')).on('click', determineChokePoints);
+jQuery('#control_panel_upper').append($button);
 
-_.each(dummyChokePointData, (candidate) => {
-    var territoryData = territoriesObj[candidate.territoryId];
-    console.log(territoryData);
-    ctx.beginPath();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.arc(territoryData.xcoord, territoryData.ycoord, 15, 0, Math.PI * 2);
-    ctx.stroke();
-});
 
 function determineChokePoints() {
+    var $buttonEl = jQuery(this);
+    
+    if (SM_GLOBALS.chokePoints) {
+        drawChokePoints(SM_GLOBALS.chokePoints);
+        return;
+    }
+    
+    $buttonEl
+        .find('.button_table').removeClass('button_table').addClass('button_table_disabled').end()
+        .find('.button_table_left').removeClass('button_table_left').addClass('button_table_left_disabled').end()
+        .find('.button_table_right').removeClass('button_table_right').addClass('button_table_right_disabled').end()
+        .off('click');
 
     var bordersPromise = new Promise(function (resolve, reject) {
         window.AjaxProxy.getAllBorders( (borderInfo) => resolve(borderInfo) );
     });
 
     bordersPromise.then( (borderInfo) => {
-        return _.mapObject(borderInfo, (val, key) => {
+        var graphData = _.mapObject(borderInfo, (val, key) => {
             var retObj = {};
             _.each(val, (border) => retObj[border] = 1);
             return retObj;
         });
-    }).then( (graphData) => {
-        return new Graph(graphData);
-    }).then( (graph) => {
-        var shortestRoutes = {};
+        
+        var graph = new Graph(graphData);
+        
         var territoryIdList = _.keys(territories);
         var routesList = [];
         _.each(territoryIdList, (currentId) => {
@@ -60,47 +90,76 @@ function determineChokePoints() {
                 }
             });
         });
+        
         routesList = _.uniq(routesList);
-        console.time('paths');
-        console.log('num routes', routesList.length);
-        _.each(routesList, (route) => {
-            var parts = route.split(',');
-            var start = parts[0];
-            var end = parts[1];
-            var shortestRoute = graph.findShortestPath(start, end);
-            console.log(route);
-            console.log(shortestRoute);
-            shortestRoutes[route] = shortestRoute;
+        
+        var shortestRoutes = {};
+        var $buttonText = $buttonEl.find('.button_text');
+        
+        var pathCalcPromise = new Promise(function (resolve, reject) {
+            console.time('paths');
+            timedChunk(routesList, (route, index) => {
+                $buttonText.text('' + (index + 1) + ' of ' + routesList.length);
+                var parts = route.split(',');
+                var start = parts[0];
+                var end = parts[1];
+                var shortestRoute = graph.findShortestPath(start, end);
+                shortestRoutes[route] = shortestRoute;
+            }, null, () => { console.timeEnd('paths'); resolve() });
         });
-        console.timeEnd('paths');
-        return shortestRoutes;
-    }).then( (shortestRouteData) => {
-        var nodePathCounts = {};
-        var routeKeys = _.keys(shortestRouteData);
-        _.each(routeKeys, (route) => {
-            var pathArr = shortestRouteData[route];
-            _.each(pathArr, (node) => {
-                if (nodePathCounts[node]) {
-                    nodePathCounts[node]++;
-                } else {
-                    nodePathCounts[node] = 1;
-                }
-            });
-        });
-        console.log(nodePathCounts);
 
-        var nodePathCountsArray = [];
-        _.each(_.keys(nodePathCounts), (key) => {
-            nodePathCountsArray.push({territoryId: key, count: nodePathCounts[key]});
+        pathCalcPromise.then( () => {
+            var nodePathCounts = {};
+            var routeKeys = _.keys(shortestRoutes);
+            _.each(routeKeys, (route) => {
+                var pathArr = shortestRoutes[route];
+                _.each(pathArr, (node) => {
+                    if (nodePathCounts[node]) {
+                        nodePathCounts[node]++;
+                    } else {
+                        nodePathCounts[node] = 1;
+                    }
+                });
+            });
+
+            var nodePathCountsArray = [];
+            _.each(_.keys(nodePathCounts), (key) => {
+                nodePathCountsArray.push({territoryId: key, count: nodePathCounts[key]});
+            });
+            nodePathCountsArray.sort((a, b) => {
+                if (a.count < b.count) { return -1; }
+                if (a.count > b.count) { return 1; }
+                return 0;
+            });
+            nodePathCountsArray.reverse();
+            var chokePoints = _.filter(nodePathCountsArray, (obj) => obj.count > (0.1 * routeKeys.length) );
+
+            SM_GLOBALS.chokePoints = chokePoints;
+            
+            drawChokePoints(chokePoints);
+            
+            $buttonEl
+                .find('.button_table_disabled').removeClass('button_table_disabled').addClass('button_table').end()
+                .find('.button_table_left_disabled').removeClass('button_table_left_disabled').addClass('button_table_left').end()
+                .find('.button_table_right_disabled').removeClass('button_table_right_disabled').addClass('button_table_right').end()
+                .find('.button_text').text('SHOW CHOKE POINTS')
+                .on('click', determineChokePoints);
         });
-        nodePathCountsArray.sort((a, b) => {
-            if (a.count < b.count) { return -1; }
-            if (a.count > b.count) { return 1; }
-            return 0;
-        });
-        nodePathCountsArray.reverse();
-        nodePathCountsArray = _.filter(nodePathCountsArray, (obj) => obj.count > (0.1 * routeKeys.length) );
-        console.log(nodePathCountsArray);
+    });
+}
+
+function drawChokePoints(chokePoints) {
+    var mapImage = jQuery('#map_image');
+    var canvas = jQuery('#m_canvas').attr('width', mapImage.attr('width')).attr('height', mapImage.attr('height'));
+    var ctx = canvas.get(0).getContext('2d');
+
+    _.each(chokePoints, (candidate) => {
+        var territoryData = territoriesObj[candidate.territoryId];
+        ctx.beginPath();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.arc(territoryData.xcoord, territoryData.ycoord, 15, 0, Math.PI * 2);
+        ctx.stroke();
     });
 }
 
