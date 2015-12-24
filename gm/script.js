@@ -14,152 +14,173 @@
 
 jQuery.noConflict();
 
-var SM_GLOBALS = {
-    chokePoints: null
-};
+(function () {
 
-function timedChunk(items, process, context, callback){
-    var todo = items.concat();   //create a clone of the original
-    var count = 0;
-    setTimeout(function(){
+    var GLOBALS = {
+        territories: window.territories,
+        chokePoints: null
+    };
 
-        var start = +new Date();
+    var Utils = {
+        timedChunk: function (items, process, context, callback) {
+            var todo = items.concat();   //create a clone of the original
+            var count = 0;
+            setTimeout(function(){
 
-        do {
-            process.call(context, todo.shift(), count);
-            count++;
-        } while (todo.length > 0 && (+new Date() - start < 50));
+                var start = +new Date();
 
-        if (todo.length > 0){
-            setTimeout(arguments.callee, 25);
-        } else {
-            callback(items);
-        }
-    }, 25);
-}
+                do {
+                    process.call(context, todo.shift(), count);
+                    count++;
+                } while (todo.length > 0 && (+new Date() - start < 50));
 
-var territoriesObj = window.territories;
-
-var $button = jQuery('<div/>').addClass('control_panel_table').html([
-        '<table style="padding-right: 5px; padding-left:5px" id="show_all_borders"><tr><td>',
-            '<table class="button_table"><tr>',
-                '<td class="button_table_left"></td>',
-                '<td class="button_text">SHOW CHOKE POINTS</td>',
-                '<td class="button_table_right"></td>',
-            '</tr></table>',
-        '</td></tr></table>'
-    ].join('')).on('click', determineChokePoints);
-jQuery('#control_panel_upper').append($button);
-
-
-function determineChokePoints() {
-    var $buttonEl = jQuery(this);
-    
-    if (SM_GLOBALS.chokePoints) {
-        drawChokePoints(SM_GLOBALS.chokePoints);
-        return;
-    }
-    
-    $buttonEl
-        .find('.button_table').removeClass('button_table').addClass('button_table_disabled').end()
-        .find('.button_table_left').removeClass('button_table_left').addClass('button_table_left_disabled').end()
-        .find('.button_table_right').removeClass('button_table_right').addClass('button_table_right_disabled').end()
-        .off('click');
-
-    var bordersPromise = new Promise(function (resolve, reject) {
-        window.AjaxProxy.getAllBorders( (borderInfo) => resolve(borderInfo) );
-    });
-
-    bordersPromise.then( (borderInfo) => {
-        var graphData = _.mapObject(borderInfo, (val, key) => {
-            var retObj = {};
-            _.each(val, (border) => retObj[border] = 1);
-            return retObj;
-        });
-        
-        var graph = new Graph(graphData);
-        
-        var territoryIdList = _.keys(territories);
-        var routesList = [];
-        _.each(territoryIdList, (currentId) => {
-            _.each(_.without(territoryIdList, currentId), (destId) => {
-                if (parseInt(currentId, 10) < parseInt(destId, 10)) {
-                    routesList.push("" + currentId + "," + destId);
+                if (todo.length > 0){
+                    setTimeout(arguments.callee, 25);
                 } else {
-                    routesList.push("" + destId + "," + currentId);
+                    callback(items);
                 }
-            });
-        });
-        
-        routesList = _.uniq(routesList);
-        
-        var shortestRoutes = {};
-        var $buttonText = $buttonEl.find('.button_text');
-        
-        var pathCalcPromise = new Promise(function (resolve, reject) {
-            console.time('paths');
-            timedChunk(routesList, (route, index) => {
-                $buttonText.text('' + (index + 1) + ' of ' + routesList.length);
-                var parts = route.split(',');
-                var start = parts[0];
-                var end = parts[1];
-                var shortestRoute = graph.findShortestPath(start, end);
-                shortestRoutes[route] = shortestRoute;
-            }, null, () => { console.timeEnd('paths'); resolve() });
+            }, 25);
+        },
+
+        makeUIButton: function (text) {
+            return jQuery([
+                '<table class="button_table"><tr>',
+                    '<td class="button_table_left"></td>',
+                    '<td class="button_text">', text.toUpperCase(), '</td>',
+                    '<td class="button_table_right"></td>',
+                '</tr></table>'
+            ].join(''));
+        }
+    };
+
+    var UI = {
+        $mapImage: jQuery('#map_image'),
+        $canvas: jQuery('#m_canvas'),
+
+        $anchorPoint: jQuery('#control_panel_upper'),
+
+        $toolsContainer: jQuery('<div/>').addClass('control_panel_table').html([
+            '<table style="padding-right: 5px; padding-left:5px" id="sm_tools"><tr><td>',
+            '</td></tr></table>'
+        ].join('')),
+
+        $chokePointsButton: Utils.makeUIButton('show choke points')
+    };
+
+    var determineChokePoints = function () {
+
+        if (GLOBALS.chokePoints) {
+            drawChokePoints(GLOBALS.chokePoints);
+            return;
+        }
+
+        window.disableButton(UI.$chokePointsButton.get(0));
+        UI.$chokePointsButton.off('click');
+
+        var bordersPromise = new Promise(function (resolve, reject) {
+            window.AjaxProxy.getAllBorders( (borderInfo) => resolve(borderInfo) );
         });
 
-        pathCalcPromise.then( () => {
-            var nodePathCounts = {};
-            var routeKeys = _.keys(shortestRoutes);
-            _.each(routeKeys, (route) => {
-                var pathArr = shortestRoutes[route];
-                _.each(pathArr, (node) => {
-                    if (nodePathCounts[node]) {
-                        nodePathCounts[node]++;
+        bordersPromise.then( (borderInfo) => {
+            var graphData = _.mapObject(borderInfo, (val, key) => {
+                var retObj = {};
+                _.each(val, (border) => retObj[border] = 1);
+                return retObj;
+            });
+
+            var graph = new Graph(graphData);
+
+            var territoryIdList = _.keys(territories);
+            var routesList = [];
+            _.each(territoryIdList, (currentId) => {
+                _.each(_.without(territoryIdList, currentId), (destId) => {
+                    if (parseInt(currentId, 10) < parseInt(destId, 10)) {
+                        routesList.push("" + currentId + "," + destId);
                     } else {
-                        nodePathCounts[node] = 1;
+                        routesList.push("" + destId + "," + currentId);
                     }
                 });
             });
 
-            var nodePathCountsArray = [];
-            _.each(_.keys(nodePathCounts), (key) => {
-                nodePathCountsArray.push({territoryId: key, count: nodePathCounts[key]});
-            });
-            nodePathCountsArray.sort((a, b) => {
-                if (a.count < b.count) { return -1; }
-                if (a.count > b.count) { return 1; }
-                return 0;
-            });
-            nodePathCountsArray.reverse();
-            var chokePoints = _.filter(nodePathCountsArray, (obj) => obj.count > (0.1 * routeKeys.length) );
+            routesList = _.uniq(routesList);
 
-            SM_GLOBALS.chokePoints = chokePoints;
-            
-            drawChokePoints(chokePoints);
-            
-            $buttonEl
-                .find('.button_table_disabled').removeClass('button_table_disabled').addClass('button_table').end()
-                .find('.button_table_left_disabled').removeClass('button_table_left_disabled').addClass('button_table_left').end()
-                .find('.button_table_right_disabled').removeClass('button_table_right_disabled').addClass('button_table_right').end()
-                .find('.button_text').text('SHOW CHOKE POINTS')
-                .on('click', determineChokePoints);
+            var shortestRoutes = {};
+            var $buttonText = UI.$chokePointsButton.find('.button_text');
+
+            var pathCalcPromise = new Promise(function (resolve, reject) {
+                console.time('paths');
+                Utils.timedChunk(routesList, (route, index) => {
+                    $buttonText.text('' + (index + 1) + ' of ' + routesList.length);
+                    var parts = route.split(',');
+                    var start = parts[0];
+                    var end = parts[1];
+                    var shortestRoute = graph.findShortestPath(start, end);
+                    shortestRoutes[route] = shortestRoute;
+                }, null, () => { console.timeEnd('paths'); resolve(); });
+            });
+
+            pathCalcPromise.then( () => {
+                var nodePathCounts = {};
+                var routeKeys = _.keys(shortestRoutes);
+                _.each(routeKeys, (route) => {
+                    var pathArr = shortestRoutes[route];
+                    _.each(pathArr, (node) => {
+                        if (nodePathCounts[node]) {
+                            nodePathCounts[node]++;
+                        } else {
+                            nodePathCounts[node] = 1;
+                        }
+                    });
+                });
+
+                var nodePathCountsArray = [];
+                _.each(_.keys(nodePathCounts), (key) => {
+                    nodePathCountsArray.push({territoryId: key, count: nodePathCounts[key]});
+                });
+                nodePathCountsArray.sort((a, b) => {
+                    if (a.count < b.count) { return -1; }
+                    if (a.count > b.count) { return 1; }
+                    return 0;
+                });
+                nodePathCountsArray.reverse();
+                var chokePoints = _.filter(nodePathCountsArray, (obj) => obj.count > (0.1 * routeKeys.length) );
+
+                GLOBALS.chokePoints = chokePoints;
+
+                drawChokePoints(chokePoints);
+
+                window.enableButton(UI.$chokePointsButton.get(0));
+                UI.$chokePointsButton
+                    .find('.button_text').text('SHOW CHOKE POINTS')
+                    .on('click', determineChokePoints);
+            });
         });
-    });
-}
+    };
 
-function drawChokePoints(chokePoints) {
-    var mapImage = jQuery('#map_image');
-    var canvas = jQuery('#m_canvas').attr('width', mapImage.attr('width')).attr('height', mapImage.attr('height'));
-    var ctx = canvas.get(0).getContext('2d');
+    var drawChokePoints = function (chokePoints) {
+        var $mapImage = UI.$mapImage;
+        var $canvas = UI.$canvas.attr('width', $mapImage.attr('width')).attr('height', $mapImage.attr('height'));
+        var ctx = $canvas.get(0).getContext('2d');
 
-    _.each(chokePoints, (candidate) => {
-        var territoryData = territoriesObj[candidate.territoryId];
-        ctx.beginPath();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.arc(territoryData.xcoord, territoryData.ycoord, 15, 0, Math.PI * 2);
-        ctx.stroke();
-    });
-}
+        _.each(chokePoints, (candidate) => {
+            var territoryData = GLOBALS.territories[candidate.territoryId];
+            ctx.beginPath();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.arc(territoryData.xcoord, territoryData.ycoord, 15, 0, Math.PI * 2);
+            ctx.stroke();
+        });
+    }
+
+    var setupUI = function () {
+        UI.$chokePointsButton.on('click', determineChokePoints);
+
+        UI.$toolsContainer.find('table tr td').append(UI.$chokePointsButton);
+
+        UI.$anchorPoint.append(UI.$toolsContainer);
+    };
+
+    setupUI();
+
+})(); 
 
