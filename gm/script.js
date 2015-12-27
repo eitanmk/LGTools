@@ -7,9 +7,11 @@
 // @grant        none
 // @require      https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js
-// @require      https://raw.githubusercontent.com/andrewhayward/dijkstra/master/graph.js
+// @require      https://raw.githubusercontent.com/cytoscape/cytoscape.js/master/dist/cytoscape.min.js
 // ==/UserScript==
 /* jshint -W097 */
+/* jshint esnext: true */
+/* globals jQuery, _, cytoscape */
 'use strict';
 
 jQuery.noConflict();
@@ -18,6 +20,8 @@ jQuery.noConflict();
 
     var GLOBALS = {
         territories: window.territories,
+        borderData: null,
+        borderGraph: null,
         chokePoints: null
     };
 
@@ -25,10 +29,8 @@ jQuery.noConflict();
         timedChunk: function (items, process, context, callback) {
             var todo = items.concat();   //create a clone of the original
             var count = 0;
-            setTimeout(function(){
-
+            setTimeout(function (){
                 var start = +new Date();
-
                 do {
                     process.call(context, todo.shift(), count);
                     count++;
@@ -42,12 +44,29 @@ jQuery.noConflict();
             }, 25);
         },
 
+        combinations: function combinations(arr, k) {
+            var i, subI, ret = [], sub,	next;
+            for (i = 0; i < arr.length; i++) {
+                if (k === 1) {
+                    ret.push([ arr[i] ]);
+                } else {
+                    sub = combinations(arr.slice(i + 1, arr.length), k - 1);
+                    for (subI = 0; subI < sub.length; subI++ ) {
+                        next = sub[subI];
+                        next.unshift(arr[i]);
+                        ret.push(next);
+                    }
+                }
+            }
+            return ret;
+        },
+
         makeUIButton: function (text) {
             return jQuery([
                 '<table class="button_table"><tr>',
-                    '<td class="button_table_left"></td>',
-                    '<td class="button_text">', text.toUpperCase(), '</td>',
-                    '<td class="button_table_right"></td>',
+                '<td class="button_table_left"></td>',
+                '<td class="button_text">', text.toUpperCase(), '</td>',
+                '<td class="button_table_right"></td>',
                 '</tr></table>'
             ].join(''));
         }
@@ -67,6 +86,46 @@ jQuery.noConflict();
         $chokePointsButton: Utils.makeUIButton('show choke points')
     };
 
+    var initializeGraphs = new Promise( (resolve, reject) => {
+        if (GLOBALS.borderData !== null) {
+            resolve(GLOBALS.borderData);
+        } else {
+            window.AjaxProxy.getAllBorders( (borderInfo) => {
+                GLOBALS.borderData = borderInfo;
+                resolve(borderInfo);
+            });
+        }
+    }).then((borderInfo) => {
+        var elements = [];
+        _.each(_.keys(borderInfo), (key) => {
+            var territoryData = GLOBALS.territories[key];
+            elements.push({
+                data: {
+                    id: key,
+                    name: territoryData.name
+                },
+                position: {
+                    x: territoryData.xcoord,
+                    y: territoryData.ycoord
+                }
+            });
+            _.each(borderInfo[key], (border) => {
+                elements.push({
+                    data: {
+                        id: key + ',' + border,
+                        source: key,
+                        target: '' + border
+                    }
+                });
+            });
+        });
+
+        GLOBALS.borderGraph = cytoscape({
+            headless: true,
+            elements: elements
+        });
+    });
+
     var determineChokePoints = function () {
 
         if (GLOBALS.chokePoints) {
@@ -77,83 +136,73 @@ jQuery.noConflict();
         window.disableButton(UI.$chokePointsButton.get(0));
         UI.$chokePointsButton.off('click');
 
-        var bordersPromise = new Promise(function (resolve, reject) {
-            window.AjaxProxy.getAllBorders( (borderInfo) => resolve(borderInfo) );
-        });
-
-        bordersPromise.then( (borderInfo) => {
-            var graphData = _.mapObject(borderInfo, (val, key) => {
-                var retObj = {};
-                _.each(val, (border) => retObj[border] = 1);
-                return retObj;
-            });
-
-            var graph = new Graph(graphData);
-
-            var territoryIdList = _.keys(territories);
-            var routesList = [];
-            _.each(territoryIdList, (currentId) => {
-                _.each(_.without(territoryIdList, currentId), (destId) => {
-                    if (parseInt(currentId, 10) < parseInt(destId, 10)) {
-                        routesList.push("" + currentId + "," + destId);
-                    } else {
-                        routesList.push("" + destId + "," + currentId);
-                    }
+        initializeGraphs.then( () => {
+            return new Promise( (resolve, reject) => {
+                var shortestRoutes = {};
+                console.time('dijkstra');
+                Utils.timedChunk(_.keys(GLOBALS.territories), (terrId) => {
+                    shortestRoutes[terrId] = GLOBALS.borderGraph.elements().dijkstra({root: '#' + terrId});
+                }, null, () => {
+                    console.timeEnd('dijkstra');
+                    resolve(shortestRoutes);
                 });
             });
-
-            routesList = _.uniq(routesList);
-
-            var shortestRoutes = {};
-            var $buttonText = UI.$chokePointsButton.find('.button_text');
-
-            var pathCalcPromise = new Promise(function (resolve, reject) {
-                console.time('paths');
-                Utils.timedChunk(routesList, (route, index) => {
-                    $buttonText.text('' + (index + 1) + ' of ' + routesList.length);
-                    var parts = route.split(',');
-                    var start = parts[0];
-                    var end = parts[1];
-                    var shortestRoute = graph.findShortestPath(start, end);
-                    shortestRoutes[route] = shortestRoute;
-                }, null, () => { console.timeEnd('paths'); resolve(); });
-            });
-
-            pathCalcPromise.then( () => {
-                var nodePathCounts = {};
-                var routeKeys = _.keys(shortestRoutes);
-                _.each(routeKeys, (route) => {
-                    var pathArr = shortestRoutes[route];
-                    _.each(pathArr, (node) => {
-                        if (nodePathCounts[node]) {
-                            nodePathCounts[node]++;
-                        } else {
-                            nodePathCounts[node] = 1;
+        }).then( (shortestRoutes) => {
+            var territoryIdList = _.keys(GLOBALS.territories);
+            var routesList = Utils.combinations(territoryIdList, 2);
+            var nodePathCounts = {};
+            return new Promise( (resolve, reject) => {
+                console.time('routes');
+                Utils.timedChunk(routesList, (route) => {
+                    var root = route[0];
+                    var target = route[1];
+                    var routesObj = shortestRoutes[root];
+                    var pathToTarget = routesObj.pathTo('#' + target);
+                    pathToTarget.forEach((elem) => {
+                        if (elem.isNode()) {
+                            var id = elem.id();
+                            if (nodePathCounts[id]) {
+                                nodePathCounts[id]++;
+                            } else {
+                                nodePathCounts[id] = 1;
+                            }
                         }
                     });
+                }, null, () => {
+                    console.timeEnd('routes');
+                    resolve({ shortestRoutes, routesList, nodePathCounts });
                 });
-
-                var nodePathCountsArray = [];
-                _.each(_.keys(nodePathCounts), (key) => {
-                    nodePathCountsArray.push({territoryId: key, count: nodePathCounts[key]});
-                });
-                nodePathCountsArray.sort((a, b) => {
-                    if (a.count < b.count) { return -1; }
-                    if (a.count > b.count) { return 1; }
-                    return 0;
-                });
-                nodePathCountsArray.reverse();
-                var chokePoints = _.filter(nodePathCountsArray, (obj) => obj.count > (0.1 * routeKeys.length) );
-
-                GLOBALS.chokePoints = chokePoints;
-
-                drawChokePoints(chokePoints);
-
-                window.enableButton(UI.$chokePointsButton.get(0));
-                UI.$chokePointsButton
-                    .find('.button_text').text('SHOW CHOKE POINTS')
-                    .on('click', determineChokePoints);
             });
+        }).then( (pathData) => {
+            var routesList = pathData.routesList;
+            var shortestRoutes = pathData.shortestRoutes;
+            var nodePathCounts = pathData.nodePathCounts;
+
+            console.log(nodePathCounts);
+            var numTerritories = _.keys(GLOBALS.territories).length;
+            var numRoutes = (numTerritories * (numTerritories - 1)) / 2;
+            console.log(numRoutes);
+            var nodePathCountsArray = [];
+            _.each(_.keys(nodePathCounts), (key) => {
+                nodePathCountsArray.push({territoryId: key, count: nodePathCounts[key]});
+            });
+            nodePathCountsArray.sort((a, b) => {
+                if (a.count < b.count) { return -1; }
+                if (a.count > b.count) { return 1; }
+                return 0;
+            });
+            nodePathCountsArray.reverse();
+            var chokePoints = _.filter(nodePathCountsArray, (obj) => obj.count > (0.1 * numRoutes) );
+
+            GLOBALS.chokePoints = chokePoints;
+
+            drawChokePoints(chokePoints);
+
+            window.enableButton(UI.$chokePointsButton.get(0));
+            UI.$chokePointsButton
+                .find('.button_text').text('SHOW CHOKE POINTS')
+                .on('click', determineChokePoints);
+
         });
     };
 
@@ -170,7 +219,7 @@ jQuery.noConflict();
             ctx.arc(territoryData.xcoord, territoryData.ycoord, 15, 0, Math.PI * 2);
             ctx.stroke();
         });
-    }
+    };
 
     var setupUI = function () {
         UI.$chokePointsButton.on('click', determineChokePoints);
@@ -180,7 +229,11 @@ jQuery.noConflict();
         UI.$anchorPoint.append(UI.$toolsContainer);
     };
 
-    setupUI();
+    var main = function () {
+        setupUI();
+    };
+
+    main();
 
 })(); 
 
