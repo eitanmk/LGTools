@@ -140,8 +140,10 @@ jQuery.noConflict();
             return new Promise( (resolve, reject) => {
                 var shortestRoutes = {};
                 console.time('dijkstra');
-                Utils.timedChunk(_.keys(GLOBALS.territories), (terrId) => {
-                    shortestRoutes[terrId] = GLOBALS.borderGraph.elements().dijkstra({root: '#' + terrId});
+                var numTerritories = _.keys(GLOBALS.territories).length;
+                Utils.timedChunk(_.keys(GLOBALS.territories), (terrId, index) => {
+                    UI.$chokePointsButton.find('.button_text').text('Calculating ' + index + ' of ' + numTerritories);
+                    shortestRoutes[terrId] = GLOBALS.borderGraph.elements().dijkstra({root: '#' + terrId, directed: true});
                 }, null, () => {
                     console.timeEnd('dijkstra');
                     resolve(shortestRoutes);
@@ -151,9 +153,12 @@ jQuery.noConflict();
             var territoryIdList = _.keys(GLOBALS.territories);
             var routesList = Utils.combinations(territoryIdList, 2);
             var nodePathCounts = {};
+            var numRoutes = routesList.length;
             return new Promise( (resolve, reject) => {
                 console.time('routes');
-                Utils.timedChunk(routesList, (route) => {
+                Utils.timedChunk(routesList, (route, index) => {
+                    UI.$chokePointsButton.find('.button_text').text('Analyzing ' + (index + 1) + ' of ' + numRoutes);
+
                     var root = route[0];
                     var target = route[1];
                     var routesObj = shortestRoutes[root];
@@ -178,10 +183,9 @@ jQuery.noConflict();
             var shortestRoutes = pathData.shortestRoutes;
             var nodePathCounts = pathData.nodePathCounts;
 
-            console.log(nodePathCounts);
             var numTerritories = _.keys(GLOBALS.territories).length;
             var numRoutes = (numTerritories * (numTerritories - 1)) / 2;
-            console.log(numRoutes);
+
             var nodePathCountsArray = [];
             _.each(_.keys(nodePathCounts), (key) => {
                 nodePathCountsArray.push({territoryId: key, count: nodePathCounts[key]});
