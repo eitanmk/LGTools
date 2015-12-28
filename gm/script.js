@@ -76,14 +76,30 @@ jQuery.noConflict();
         $mapImage: jQuery('#map_image'),
         $canvas: jQuery('#m_canvas'),
 
-        $anchorPoint: jQuery('#control_panel_upper'),
+        $anchorPoint: jQuery('<div id="sm_tools"></div>').insertAfter('#control_panel_upper'),
+
+        $smToolsHeading: jQuery('<div/>').css({
+            margin: '5px 3px 0 0',
+            padding: '4px',
+            borderTop: '1px solid #ebe585',
+            borderBottom: '1px solid #ebe585',
+            background: 'url(images/blue_20_opac.png) 0 0 repeat'
+        }).append('<span style="color: white; font-weight: bold;">SM Tools</span>'),
 
         $toolsContainer: jQuery('<div/>').addClass('control_panel_table').html([
             '<table style="padding-right: 5px; padding-left:5px" id="sm_tools"><tr><td>',
             '</td></tr></table>'
         ].join('')),
 
-        $chokePointsButton: Utils.makeUIButton('show choke points')
+        $chokePointsButton: Utils.makeUIButton('show choke points'),
+        $chokePointsToggle: jQuery([
+            '<input type="checkbox" checked="checked" id="choke_points_toggle" />',
+            '<label for="choke_points_toggle">Toggle choke points</label>'
+        ].join('')),
+
+        addToToolsContainer: function ($elem) {
+            UI.$toolsContainer.find('table tr td').append($elem);
+        }
     };
 
     var initializeGraphs = new Promise( (resolve, reject) => {
@@ -202,18 +218,31 @@ jQuery.noConflict();
 
             drawChokePoints(chokePoints);
 
-            window.enableButton(UI.$chokePointsButton.get(0));
-            UI.$chokePointsButton
-                .find('.button_text').text('SHOW CHOKE POINTS')
-                .on('click', determineChokePoints);
+            UI.$chokePointsButton.remove();
+            UI.$chokePointsToggle.filter('input').on('click', function () {
+                if (this.checked) {
+                    drawChokePoints(GLOBALS.chokePoints);
+                } else {
+                    resetCanvas();
+                }
+            });
+            UI.addToToolsContainer(UI.$chokePointsToggle);
 
         });
     };
 
-    var drawChokePoints = function (chokePoints) {
+    var resetCanvas = function () {
         var $mapImage = UI.$mapImage;
-        var $canvas = UI.$canvas.attr('width', $mapImage.attr('width')).attr('height', $mapImage.attr('height'));
+        var mapWidth = $mapImage.attr('width');
+        var mapHeight = $mapImage.attr('height');
+        var $canvas = UI.$canvas.attr('width', mapWidth).attr('height', mapHeight);
         var ctx = $canvas.get(0).getContext('2d');
+        ctx.clearRect(0, 0, mapWidth, mapHeight);
+    };
+
+    var drawChokePoints = function (chokePoints) {
+        resetCanvas();
+        var ctx = UI.$canvas.get(0).getContext('2d');
 
         _.each(chokePoints, (candidate) => {
             var territoryData = GLOBALS.territories[candidate.territoryId];
@@ -228,8 +257,9 @@ jQuery.noConflict();
     var setupUI = function () {
         UI.$chokePointsButton.on('click', determineChokePoints);
 
-        UI.$toolsContainer.find('table tr td').append(UI.$chokePointsButton);
+        UI.addToToolsContainer(UI.$chokePointsButton);
 
+        UI.$anchorPoint.append(UI.$smToolsHeading);
         UI.$anchorPoint.append(UI.$toolsContainer);
     };
 
