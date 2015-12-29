@@ -7,7 +7,7 @@
 // @grant        none
 // @require      https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js
-// @require      https://raw.githubusercontent.com/cytoscape/cytoscape.js/master/dist/cytoscape.min.js
+// @require      https://raw.githubusercontent.com/cytoscape/cytoscape.js/master/dist/cytoscape.js
 // ==/UserScript==
 /* jshint -W097 */
 /* jshint esnext: true */
@@ -77,6 +77,7 @@ jQuery.noConflict();
     var UI = {
         $mapImage: jQuery('#map_image'),
         $canvas: jQuery('#m_canvas'),
+        $graphCanvas: jQuery('<div/>').attr('id', 'sm_graph').insertAfter(jQuery('#m_canvas')),
         $playerTable: jQuery('.data_tables_table .data_table').first(),
         $teamTable: jQuery('.data_tables_table .data_table').last(),
 
@@ -91,7 +92,7 @@ jQuery.noConflict();
         }).append('<span style="color: white; font-weight: bold;">SM Tools</span>'),
 
         $toolsContainer: jQuery('<div/>').addClass('control_panel_table').html([
-            '<table style="padding-right: 5px; padding-left:5px" id="sm_tools"><tr><td>',
+            '<table style="padding-right: 5px; padding-left:5px"><tr><td>',
             '</td></tr></table>'
         ].join('')),
 
@@ -101,8 +102,13 @@ jQuery.noConflict();
             '<label for="choke_points_toggle">Toggle choke points</label>'
         ].join('')),
 
+        $graphToggle: jQuery([
+            '<input type="checkbox" checked="checked" id="graph_toggle" />',
+            '<label for="graph_toggle">Toggle graph layer</label>'
+        ].join('')),
+
         addToToolsContainer: function ($elem) {
-            UI.$toolsContainer.find('table tr td').append($elem);
+            UI.$toolsContainer.find('table tr td').first().append($elem);
         },
 
         $teamSummaryTable: jQuery([
@@ -152,9 +158,60 @@ jQuery.noConflict();
             });
         });
 
+        var $mapImage = UI.$mapImage;
+        var mapWidth = $mapImage.attr('width');
+        var mapHeight = $mapImage.attr('height');
+        UI.$graphCanvas.html('&nbsp').css({
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: mapWidth + 'px',
+            height: mapHeight + 'px',
+            zIndex: 100
+        });
+
         GLOBALS.borderGraph = cytoscape({
-            headless: true,
-            elements: elements
+            //headless: true,
+            container: UI.$graphCanvas.get(0),
+            elements: elements,
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'width': '10',
+                        'height': '10',
+                        'shape': 'rectangle'
+                    }
+                },
+                {
+                    selector: 'edge',
+                    style: {
+                        'width': 2,
+                        'curve-style': 'haystack',
+                        'haystack-radius': 0,
+                        'line-color': '#ccc',
+                        'source-arrow-shape': 'none',
+                        'mid-target-arrow-shape': 'none',
+                        'mid-source-arrow-shape': 'none',
+                        'target-arrow-shape': 'triangle',
+                        'target-arrow-fill': 'filled',
+                        'target-arrow-color': '#ccc'
+                    }
+                }
+            ],
+            layout: {
+                name: 'preset',
+                pan: false,
+                zoom: false,
+                fit: false,
+                padding: 0
+            },
+            pan: { x: 1, y: -18 },
+            zoomingEnabled: false,
+            userZoomingEnabled: false,
+            panningEnabled: false,
+            userPanningEnabled: false,
+            autolock: true
         });
     });
 
@@ -274,6 +331,15 @@ jQuery.noConflict();
         UI.$chokePointsButton.on('click', determineChokePoints);
 
         UI.addToToolsContainer(UI.$chokePointsButton);
+
+        UI.$graphToggle.filter('input').on('click', function () {
+                if (this.checked) {
+                    UI.$graphCanvas.show();
+                } else {
+                    UI.$graphCanvas.hide();
+                }
+            });
+        UI.addToToolsContainer(UI.$graphToggle);
 
         UI.$anchorPoint.append(UI.$smToolsHeading);
         UI.$anchorPoint.append(UI.$toolsContainer);
