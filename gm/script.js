@@ -106,7 +106,7 @@ jQuery.noConflict();
         },
 
         $teamSummaryTable: jQuery([
-            '<td valign="top" style="padding-left: 5px">',
+            '<td valign="top" style="padding-left: 5px; width: 40%">',
             '<table border="0" cellpadding="0" cellspacing="0" class="data_table">',
             '<thead>',
             '<tr><td colspan="4">Team Summary</td></tr>',
