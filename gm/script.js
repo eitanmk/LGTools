@@ -24,6 +24,7 @@ jQuery.noConflict();
         isTeamGame: window.teamGame === true,
         borderData: null,
         borderGraph: null,
+        graphDrawn: false,
         chokePoints: null
     };
 
@@ -71,13 +72,27 @@ jQuery.noConflict();
                 '<td class="button_table_right"></td>',
                 '</tr></table>'
             ].join(''));
+        },
+
+        makeUICheckbox: function (id, text, checked) {
+            var checkedVal = '';
+            if (checked) {
+                checkedVal = ' checked="checked"';
+            }
+
+            return jQuery([
+                '<div>',
+                '<input type="checkbox"', checkedVal, '" id="', id, '" />',
+                '<label for="', id, '">', text, '</label>',
+                '</div>'
+            ].join(''));
         }
     };
 
     var UI = {
         $mapImage: jQuery('#map_image'),
         $canvas: jQuery('#m_canvas'),
-        $graphCanvas: jQuery('<div/>').attr('id', 'sm_graph').insertAfter(jQuery('#m_canvas')),
+        $graphCanvas: jQuery('<div/>').hide().attr('id', 'sm_graph').insertAfter(jQuery('#m_canvas')),
         $playerTable: jQuery('.data_tables_table .data_table').first(),
         $teamTable: jQuery('.data_tables_table .data_table').last(),
 
@@ -97,15 +112,9 @@ jQuery.noConflict();
         ].join('')),
 
         $chokePointsButton: Utils.makeUIButton('show choke points'),
-        $chokePointsToggle: jQuery([
-            '<input type="checkbox" checked="checked" id="choke_points_toggle" />',
-            '<label for="choke_points_toggle">Toggle choke points</label>'
-        ].join('')),
+        $chokePointsToggle: Utils.makeUICheckbox('choke_points_toggle', 'Toggle choke points', true),
 
-        $graphToggle: jQuery([
-            '<input type="checkbox" checked="checked" id="graph_toggle" />',
-            '<label for="graph_toggle">Toggle graph layer</label>'
-        ].join('')),
+        $graphToggle: Utils.makeUICheckbox('graph_toggle', 'Toggle graph layer', false),
 
         addToToolsContainer: function ($elem) {
             UI.$toolsContainer.find('table tr td').first().append($elem);
@@ -291,15 +300,14 @@ jQuery.noConflict();
 
             drawChokePoints(chokePoints);
 
-            UI.$chokePointsButton.remove();
-            UI.$chokePointsToggle.filter('input').on('click', function () {
+            UI.$chokePointsToggle.find('input').on('click', function () {
                 if (this.checked) {
                     drawChokePoints(GLOBALS.chokePoints);
                 } else {
                     resetCanvas();
                 }
             });
-            UI.addToToolsContainer(UI.$chokePointsToggle);
+            UI.$chokePointsButton.replaceWith(UI.$chokePointsToggle);
 
         });
     };
@@ -332,13 +340,17 @@ jQuery.noConflict();
 
         UI.addToToolsContainer(UI.$chokePointsButton);
 
-        UI.$graphToggle.filter('input').on('click', function () {
-                if (this.checked) {
-                    UI.$graphCanvas.show();
-                } else {
-                    UI.$graphCanvas.hide();
+        UI.$graphToggle.find('input').on('click', function () {
+            if (this.checked) {
+                UI.$graphCanvas.show();
+                if (!GLOBALS.graphDrawn) {
+                    GLOBALS.borderGraph.resize();
+                    GLOBALS.graphDrawn = true;
                 }
-            });
+            } else {
+                UI.$graphCanvas.hide();
+            }
+        });
         UI.addToToolsContainer(UI.$graphToggle);
 
         UI.$anchorPoint.append(UI.$smToolsHeading);
