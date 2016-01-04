@@ -336,8 +336,10 @@ jQuery.noConflict();
     };
 
     var setupUI = function () {
-        UI.$chokePointsButton.on('click', determineChokePoints);
+        // fix huge annoyance of having attack reports always enabled by default...
+        jQuery('#attack_reports_cb').trigger('click');
 
+        UI.$chokePointsButton.on('click', determineChokePoints);
         UI.addToToolsContainer(UI.$chokePointsButton);
 
         UI.$graphToggle.find('input').on('click', function () {
