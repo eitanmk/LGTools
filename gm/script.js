@@ -32,7 +32,7 @@ jQuery.noConflict();
         timedChunk: function (items, process, context, callback) {
             var todo = items.concat();   //create a clone of the original
             var count = 0;
-            setTimeout(function (){
+            setTimeout(function chunk() {
                 var start = +new Date();
                 do {
                     process.call(context, todo.shift(), count);
@@ -40,7 +40,7 @@ jQuery.noConflict();
                 } while (todo.length > 0 && (+new Date() - start < 50));
 
                 if (todo.length > 0){
-                    setTimeout(arguments.callee, 25);
+                    setTimeout(chunk, 25);
                 } else {
                     callback(items);
                 }
