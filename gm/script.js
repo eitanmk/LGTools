@@ -7,7 +7,7 @@
 // @grant        none
 // @require      https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js
-// @require      https://raw.githubusercontent.com/cytoscape/cytoscape.js/794969051b0b7d8336f75e95b1a026605286a852/dist/cytoscape.js
+// @require      https://raw.githubusercontent.com/eitanmk/LGTools/master/gm/deps/cytoscape-2.5.4.js
 // ==/UserScript==
 /* jshint -W097 */
 /* jshint esnext: true */
