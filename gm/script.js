@@ -7,20 +7,27 @@
 // @grant        none
 // @require      https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js
-// @require      https://raw.githubusercontent.com/cytoscape/cytoscape.js/master/dist/cytoscape.js
+// @require      https://raw.githubusercontent.com/cytoscape/cytoscape.js/794969051b0b7d8336f75e95b1a026605286a852/dist/cytoscape.js
 // ==/UserScript==
 /* jshint -W097 */
 /* jshint esnext: true */
-/* globals jQuery, _, cytoscape */
+/* globals console, jQuery, _, cytoscape */
 'use strict';
 
 jQuery.noConflict();
 
 (function () {
+    var DEBUG_ENABLED = !!0;
+
+    var DEBUG = function () {
+        if (DEBUG_ENABLED) console.log.apply(console, arguments);
+    };
 
     var GLOBALS = {
         players: window.players,
         territories: window.territories,
+        territoryToContinentMap: window.ttcVals,
+        bridgesAndWallsEnabled: window.bridgesAndWallsEnabled, // TODO, use to determine graph can change during play. could cause choke points to be wrong if loaded from db
         isTeamGame: window.teamGame === true,
         borderData: null,
         borderGraph: null,
@@ -146,6 +153,7 @@ jQuery.noConflict();
         var elements = [];
         _.each(_.keys(borderInfo), (key) => {
             var territoryData = GLOBALS.territories[key];
+            // add the nodes
             elements.push({
                 data: {
                     id: key,
@@ -156,6 +164,7 @@ jQuery.noConflict();
                     y: territoryData.ycoord
                 }
             });
+            // add the edges (directed)
             _.each(borderInfo[key], (border) => {
                 elements.push({
                     data: {
@@ -206,7 +215,7 @@ jQuery.noConflict();
                         'target-arrow-fill': 'filled',
                         'target-arrow-color': '#ccc'
                     }
-                }
+                },
             ],
             layout: {
                 name: 'preset',
@@ -236,66 +245,55 @@ jQuery.noConflict();
 
         initializeGraphs.then( () => {
             return new Promise( (resolve, reject) => {
-                var shortestRoutes = {};
-                console.time('dijkstra');
+                var chokePoints = [];
                 var numTerritories = _.keys(GLOBALS.territories).length;
+                var $buttonText = UI.$chokePointsButton.find('.button_text');
+
+                console.time('astar');
                 Utils.timedChunk(_.keys(GLOBALS.territories), (terrId, index) => {
-                    UI.$chokePointsButton.find('.button_text').text('Calculating ' + index + ' of ' + numTerritories);
-                    shortestRoutes[terrId] = GLOBALS.borderGraph.elements().dijkstra({root: '#' + terrId, directed: true});
-                }, null, () => {
-                    console.timeEnd('dijkstra');
-                    resolve(shortestRoutes);
-                });
-            });
-        }).then( (shortestRoutes) => {
-            var territoryIdList = _.keys(GLOBALS.territories);
-            var routesList = Utils.combinations(territoryIdList, 2);
-            var nodePathCounts = {};
-            var numRoutes = routesList.length;
-            return new Promise( (resolve, reject) => {
-                console.time('routes');
-                Utils.timedChunk(routesList, (route, index) => {
-                    UI.$chokePointsButton.find('.button_text').text('Analyzing ' + (index + 1) + ' of ' + numRoutes);
+                //Utils.timedChunk([144], (terrId, index) => {
+                    $buttonText.text('Calculating ' + index + ' of ' + numTerritories);
+                    var routes = [];
+                    var borders = GLOBALS.borderData['' + terrId];
+                    DEBUG(borders);
+                    var borderTestCombos = Utils.combinations(borders, 2);
+                    _.each(borderTestCombos, (combo) => {
+                        DEBUG(combo);
+                        var route = GLOBALS.borderGraph.elements().aStar({
+                            root: '#' + combo[0],
+                            goal: '#' + combo[1],
+                            weight: (edge) => {
+                                if (edge.data().target == terrId) {
+                                    return 2;
+                                }
+                                return 1;
+                            },
+                            directed: true
+                        });
+                        DEBUG(route);
 
-                    var root = route[0];
-                    var target = route[1];
-                    var routesObj = shortestRoutes[root];
-                    var pathToTarget = routesObj.pathTo('#' + target);
-                    pathToTarget.forEach((elem) => {
-                        if (elem.isNode()) {
-                            var id = elem.id();
-                            if (nodePathCounts[id]) {
-                                nodePathCounts[id]++;
-                            } else {
-                                nodePathCounts[id] = 1;
-                            }
+                        if (route.distance === 1) { return; } // borders directly connected, so we can ignore and continue
+
+                        // if route is length 2, and root and goal are in same continent, ignore
+                        DEBUG(combo[0], GLOBALS.territoryToContinentMap[combo[0]], combo[1], GLOBALS.territoryToContinentMap[combo[1]]);
+                        if (GLOBALS.territoryToContinentMap[combo[0]] === GLOBALS.territoryToContinentMap[combo[1]]) {
+                            return;
                         }
+
+                        routes.push(route);
                     });
+
+                    if (routes.length > 0 && _.every(routes, (route) => route.distance === 3)) {
+                        DEBUG('adding choke point', terrId);
+                        chokePoints.push(terrId);
+                    }
                 }, null, () => {
-                    console.timeEnd('routes');
-                    resolve({ shortestRoutes, routesList, nodePathCounts });
+                    console.timeEnd('astar');
+                    resolve(chokePoints);
                 });
             });
-        }).then( (pathData) => {
-            var routesList = pathData.routesList;
-            var shortestRoutes = pathData.shortestRoutes;
-            var nodePathCounts = pathData.nodePathCounts;
-
-            var numTerritories = _.keys(GLOBALS.territories).length;
-            var numRoutes = (numTerritories * (numTerritories - 1)) / 2;
-
-            var nodePathCountsArray = [];
-            _.each(_.keys(nodePathCounts), (key) => {
-                nodePathCountsArray.push({territoryId: key, count: nodePathCounts[key]});
-            });
-            nodePathCountsArray.sort((a, b) => {
-                if (a.count < b.count) { return -1; }
-                if (a.count > b.count) { return 1; }
-                return 0;
-            });
-            nodePathCountsArray.reverse();
-            var chokePoints = _.filter(nodePathCountsArray, (obj) => obj.count > (0.1 * numRoutes) );
-
+        }).then( (chokePoints) => {
+            DEBUG(chokePoints);
             GLOBALS.chokePoints = chokePoints;
 
             drawChokePoints(chokePoints);
@@ -308,7 +306,6 @@ jQuery.noConflict();
                 }
             });
             UI.$chokePointsButton.replaceWith(UI.$chokePointsToggle);
-
         });
     };
 
@@ -326,11 +323,11 @@ jQuery.noConflict();
         var ctx = UI.$canvas.get(0).getContext('2d');
 
         _.each(chokePoints, (candidate) => {
-            var territoryData = GLOBALS.territories[candidate.territoryId];
+            var territoryData = GLOBALS.territories[candidate];
             ctx.beginPath();
             ctx.lineWidth = 3;
             ctx.strokeStyle = '#FFFFFF';
-            ctx.arc(territoryData.xcoord, territoryData.ycoord, 15, 0, Math.PI * 2);
+            ctx.arc(territoryData.xcoord, territoryData.ycoord, 20, 0, Math.PI * 2);
             ctx.stroke();
         });
     };
@@ -431,5 +428,5 @@ jQuery.noConflict();
 
     main();
 
-})(); 
+})();
 
