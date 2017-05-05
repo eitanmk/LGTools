@@ -255,10 +255,31 @@ jQuery.noConflict();
                     $buttonText.text('Calculating ' + index + ' of ' + numTerritories);
                     var routes = [];
                     var borders = GLOBALS.borderData['' + terrId];
-                    DEBUG(borders);
+                    var candidateContinent = GLOBALS.territoryToContinentMap[terrId];
+                    DEBUG('territory', terrId, GLOBALS.territories[terrId].name, 'continent', candidateContinent);
+                    DEBUG('borders', borders);
                     var borderTestCombos = Utils.combinations(borders, 2);
                     _.each(borderTestCombos, (combo) => {
-                        DEBUG(combo);
+                        var root = combo[0];
+                        var goal = combo[1];
+                        DEBUG('current combo', root, goal);
+                        DEBUG('combo continents', root, GLOBALS.territoryToContinentMap[root], goal, GLOBALS.territoryToContinentMap[goal]);
+                        // if both the root and goal are in the same continent as candidate, we can skip this combo
+                        if (GLOBALS.territoryToContinentMap[root] === candidateContinent &&
+                            GLOBALS.territoryToContinentMap[goal] === candidateContinent) {
+                            DEBUG('disqualifying b/c both neighbors are in same continent as candidate');
+                            return;
+                        }
+
+                        // if neither the root nor goal are in the candidate's continent, we can skip this combo
+                        if (GLOBALS.territoryToContinentMap[root] !== candidateContinent &&
+                            GLOBALS.territoryToContinentMap[goal] !== candidateContinent) {
+                            DEBUG('disqualifying b/c both neighbors are in a different continent from candidate');
+                            return;
+                        }
+
+                        // if we're here, one of the territories in this combo should be in the candidate's continent
+
                         var route = GLOBALS.borderGraph.elements().aStar({
                             root: '#' + combo[0],
                             goal: '#' + combo[1],
@@ -271,15 +292,6 @@ jQuery.noConflict();
                             directed: true
                         });
                         DEBUG(route);
-
-                        if (route.distance === 1) { return; } // borders directly connected, so we can ignore and continue
-
-                        // if route is length 2, and root and goal are in same continent, ignore
-                        DEBUG(combo[0], GLOBALS.territoryToContinentMap[combo[0]], combo[1], GLOBALS.territoryToContinentMap[combo[1]]);
-                        if (GLOBALS.territoryToContinentMap[combo[0]] === GLOBALS.territoryToContinentMap[combo[1]]) {
-                            return;
-                        }
-
                         routes.push(route);
                     });
 
