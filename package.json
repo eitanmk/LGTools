@@ -1,0 +1,11 @@
+{
+  "name": "lgtools",
+  "version": "0.0.1",
+  "description": "Enhancements to LandGrab",
+  "author": "Eitan Konigsburg",
+  "scripts": {},
+  "devDependencies": {
+    "grunt": "^1.0.1",
+    "grunt-contrib-concat": "^1.0.1"
+  }
+}
