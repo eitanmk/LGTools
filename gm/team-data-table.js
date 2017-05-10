@@ -1,4 +1,7 @@
-var createTeamDataTable = function () {
+import {GLOBALS} from './globals.js';
+import {UI} from './ui.js';
+
+export function createTeamDataTable() {
     if (!GLOBALS.isTeamGame) {
         return;
     }

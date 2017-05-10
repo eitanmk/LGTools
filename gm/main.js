@@ -1,6 +1,7 @@
-var main = function () {
-    setupUI();
-    createTeamDataTable();
-};
+import {setupUI} from './choke-points.js';
+import {createTeamDataTable} from './team-data-table.js';
 
-main();
+jQuery.noConflict(); //needed?
+
+setupUI();
+createTeamDataTable();

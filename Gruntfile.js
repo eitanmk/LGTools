@@ -1,26 +1,30 @@
 module.exports = function (grunt) {
 
+    var artifactPath = 'dist/lgtools.user.js';
+
     grunt.initConfig({
-        concat: {
+        pkg: grunt.file.readJSON('package.json'),
+        rollup: {
             dist: {
-                src: [
-                    'gm/header.js',
-                    'gm/debug.js',
-                    'gm/globals.js',
-                    'gm/utils.js',
-                    'gm/ui.js', 
-                    'gm/graph-display.js',
-                    'gm/choke-points.js',
-                    'gm/team-data-table.js',
-                    'gm/main.js'
-                ],
-                dest: 'dist/lgtools.user.js'
+                options: {
+                    format: 'iife'
+                },
+                files: {
+                    'dist/lgtools.user.js': 'gm/main.js',
+                }
             }
         }
     });
 
-    grunt.loadNpmTasks('grunt-contrib-concat');
+    grunt.loadNpmTasks('grunt-rollup');
 
     grunt.registerTask('default', 'build');
-    grunt.registerTask('build', 'concat');
+    grunt.registerTask('build', ['rollup', 'prepend']);
+    grunt.registerTask('prepend', function () {
+        var headerTemplate = grunt.file.read('header.template.js');
+        var headerText = grunt.template.process(headerTemplate, grunt.config('pkg'));
+        var scriptFile = grunt.file.read(artifactPath);
+        scriptFile = [headerText, scriptFile].join('\n');
+        grunt.file.write(artifactPath, scriptFile);
+    });
 };

@@ -1,4 +1,4 @@
-var Utils = {
+export var Utils = {
     timedChunk: function (items, process, context, callback) {
         var todo = items.concat();   //create a clone of the original
         var count = 0;

@@ -1,4 +1,7 @@
-var initializeGraphs = new Promise( (resolve, reject) => {
+import {GLOBALS} from './globals.js';
+import {UI} from './ui.js';
+
+export var initializeGraphs = new Promise( (resolve, reject) => {
     if (GLOBALS.borderData !== null) {
         resolve(GLOBALS.borderData);
     } else {
@@ -90,27 +93,3 @@ var initializeGraphs = new Promise( (resolve, reject) => {
         autolock: true
     });
 });
-
-var setupUI = function () {
-    // fix huge annoyance of having attack reports always enabled by default...
-    jQuery('#attack_reports_cb').trigger('click');
-
-    UI.$chokePointsButton.on('click', determineChokePoints);
-    UI.addToToolsContainer(UI.$chokePointsButton);
-
-    UI.$graphToggle.find('input').on('click', function () {
-        if (this.checked) {
-            UI.$graphCanvas.show();
-            if (!GLOBALS.graphDrawn) {
-                GLOBALS.borderGraph.resize();
-                GLOBALS.graphDrawn = true;
-            }
-        } else {
-            UI.$graphCanvas.hide();
-        }
-    });
-    UI.addToToolsContainer(UI.$graphToggle);
-
-    UI.$anchorPoint.append(UI.$smToolsHeading);
-    UI.$anchorPoint.append(UI.$toolsContainer);
-};

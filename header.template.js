@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         LG graph test
-// @version      0.1
-// @description  Get data about game and map in order to help us plan moves
+// @name         <%= pkg.name %>
+// @version      <%= pkg.version %>
+// @description  <%= pkg.description %>
 // @include      http://landgrab.net/landgrab/ViewBoard
 // @include      http://landgrab.net/landgrab/RealtimeBoard
 // @grant        none
@@ -12,6 +12,4 @@
 /* jshint -W097 */
 /* jshint esnext: true */
 /* globals console, jQuery, _, cytoscape */
-'use strict';
 
-jQuery.noConflict();

@@ -1,4 +1,6 @@
-var UI = {
+import {Utils} from './utils.js';
+
+export var UI = {
     $mapImage: jQuery('#map_image'),
     $canvas: jQuery('#m_canvas'),
     $graphCanvas: jQuery('<div/>').hide().attr('id', 'sm_graph').insertAfter(jQuery('#m_canvas')),

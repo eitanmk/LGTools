@@ -1,4 +1,4 @@
-var GLOBALS = {
+export var GLOBALS = {
     players: window.players,
     territories: window.territories,
     territoryToContinentMap: window.ttcVals,
@@ -11,5 +11,3 @@ var GLOBALS = {
     graphDrawn: false,
     chokePoints: null
 };
-
-

@@ -1,6 +1,5 @@
 var DEBUG_ENABLED = !!0;
 
-var DEBUG = function () {
+export function DEBUG() {
     if (DEBUG_ENABLED) console.log.apply(console, arguments);
 };
-
