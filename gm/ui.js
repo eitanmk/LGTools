@@ -1,4 +1,6 @@
-import {Utils} from './utils.js';
+import { Utils } from './utils.js';
+import { GraphView } from './graph-display.js';
+import { ChokePointsView } from './choke-points-display.js';
 
 export var UI = {
     $mapImage: jQuery('#map_image'),
@@ -43,3 +45,40 @@ export var UI = {
         '</td>'
     ].join('')).find('thead td').css('background-image', 'url(images/white_40_opac.png)').end()
 };
+
+export function setupUI() {
+    // fix huge annoyance of having attack reports always enabled by default...
+    jQuery('#attack_reports_cb').trigger('click');
+    
+    UI.$chokePointsButton.on('click', function () {
+        window.disableButton(this);
+        jQuery(this).off('click');
+        var chokePointsViewObj = new ChokePointsView();
+        chokePointsViewObj.drawChokePoints().then( () => {
+            UI.$chokePointsToggle.find('input').on('click', function () {
+                if (this.checked) {
+                    chokePointsViewObj.drawChokePoints();
+                } else {
+                    chokePointsViewObj._resetCanvas();
+                }
+            });
+            UI.$chokePointsButton.replaceWith(UI.$chokePointsToggle);
+        });
+    });
+    UI.addToToolsContainer(UI.$chokePointsButton);
+
+    var graphViewObj = new GraphView();
+    graphViewObj.init().then( () => {
+        UI.$graphToggle.find('input').on('click', function () {
+            if (this.checked) {
+                graphViewObj.show();
+            } else {
+                graphViewObj.hide();
+            }
+        });
+    });
+    UI.addToToolsContainer(UI.$graphToggle);
+
+    UI.$anchorPoint.append(UI.$smToolsHeading);
+    UI.$anchorPoint.append(UI.$toolsContainer);
+}

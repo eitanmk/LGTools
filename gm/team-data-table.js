@@ -1,8 +1,8 @@
-import {GLOBALS} from './globals.js';
-import {UI} from './ui.js';
+import { GAME } from './game.js';
+import { UI } from './ui.js';
 
 export function createTeamDataTable() {
-    if (!GLOBALS.isTeamGame) {
+    if (!GAME.isTeamGame) {
         return;
     }
 
@@ -20,7 +20,7 @@ export function createTeamDataTable() {
     UI.$playerTable.find('tbody tr').each(function (index, row) {
         var territoryCount = 0, troopCount = 0, cardCount = 0;
         var playerName = jQuery.trim(jQuery(row).find('td').eq(1).text());
-        var playerObj = _.find(_.values(GLOBALS.players), function (obj) { return obj.name.indexOf(playerName) === 0; });
+        var playerObj = _.find(_.values(GAME.players), function (obj) { return obj.name.indexOf(playerName) === 0; });
         var teamId = '' + playerObj.teamNumber;
         var $testColumn = jQuery(row).find('td').eq(2);
         if (! $testColumn.attr('colspan')) {
@@ -49,7 +49,7 @@ export function createTeamDataTable() {
         }
     });
 
-    var totalTerritories = _.keys(GLOBALS.territories).length;
+    var totalTerritories = _.keys(GAME.territories).length;
     var totalTroops = _.reduce(_.values(teamData), function (memo, data) { return memo + data.troops; }, 0);
 
     var $rowTarget = UI.$teamSummaryTable.find('tbody');
@@ -64,5 +64,4 @@ export function createTeamDataTable() {
             '</tr>'
         ].join(''));
     });
-};
-
+}

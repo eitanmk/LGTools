@@ -1,5 +1,5 @@
-import {setupUI} from './choke-points.js';
-import {createTeamDataTable} from './team-data-table.js';
+import { setupUI } from './ui.js';
+import { createTeamDataTable } from './team-data-table.js';
 
 jQuery.noConflict(); //needed?
 

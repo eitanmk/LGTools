@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         lg-tools
-// @version      0.0.1
+// @version      0.0.2
 // @description  Enhancements to LandGrab
 // @include      http://landgrab.net/landgrab/ViewBoard
 // @include      http://landgrab.net/landgrab/RealtimeBoard
@@ -16,26 +16,6 @@
 
 (function () {
     'use strict';
-
-    var DEBUG_ENABLED = !!0;
-
-    function DEBUG() {
-        if (DEBUG_ENABLED) console.log.apply(console, arguments);
-    }
-
-    var GLOBALS = {
-        players: window.players,
-        territories: window.territories,
-        territoryToContinentMap: window.ttcVals,
-        // TODO, use to determine graph can change during play. could cause choke points to be wrong if loaded from db
-        bridgesAndWallsEnabled: window.bridgesAndWallsEnabled,
-        isTeamGame: window.teamGame === true,
-        borderData: null,
-        borderGraph: null,
-        // TODO maybe these shouldn't be global?
-        graphDrawn: false,
-        chokePoints: null
-    };
 
     var Utils = {
         timedChunk: function (items, process, context, callback) {
@@ -98,6 +78,281 @@
         }
     };
 
+    var GAME = {
+        players: window.players,
+        territories: window.territories,
+        territoryToContinentMap: window.ttcVals,
+        bridgesAndWallsEnabled: window.bridgesAndWallsEnabled,
+        isTeamGame: window.teamGame === true
+    };
+
+    class Graph {
+
+        getBorderData() {
+            return new Promise( (resolve) => {
+                if (this.borderData) {
+                    resolve(this.borderData);
+                } else {
+                    window.AjaxProxy.getAllBorders( (borderInfo) => {
+                        this.borderData = borderInfo;
+                        resolve(borderInfo);
+                    });
+                }
+            });
+        }
+
+        _createGraphElements(borderInfo) {
+            var elements = [];
+            _.each(_.keys(borderInfo), (key) => {
+                var territoryData = GAME.territories[key];
+                // add the nodes
+                elements.push({
+                    data: {
+                        id: key,
+                        name: territoryData.name
+                    },
+                    position: {
+                        x: territoryData.xcoord,
+                        y: territoryData.ycoord
+                    }
+                });
+                // add the edges (directed)
+                _.each(borderInfo[key], (border) => {
+                    elements.push({
+                        data: {
+                            id: key + ',' + border,
+                            source: key,
+                            target: '' + border
+                        }
+                    });
+                });
+            });
+
+            this.graphElements = elements;
+            return this.graphElements; 
+        }
+
+        async getGraphElements() {
+            if (this.graphElements) {
+                return this.graphElements;
+            }
+
+            var borderInfo = await this.getBorderData();
+            return this._createGraphElements(borderInfo);
+        }
+    }
+
+    class GraphView {
+
+        async init() {
+            if (!this.graph) {
+                var graphObj = new Graph();
+                this.graphContainer = this._setupGraphContainer();
+                var graphElements = await graphObj.getGraphElements();
+                this.graph = this._initializeGraph(this.graphContainer, graphElements);
+            }
+        }
+
+        _setupGraphContainer() {
+            var $mapImage = jQuery('#map_image');
+            var mapWidth = $mapImage.attr('width');
+            var mapHeight = $mapImage.attr('height');
+
+            var $container = jQuery('<div/>')
+                .hide()
+                .attr('id', 'sm_graph')
+                .html('&nbsp')
+                .css({
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: mapWidth + 'px',
+                    height: mapHeight + 'px',
+                    zIndex: 100
+                })
+                .insertAfter(jQuery('#m_canvas'));
+
+            return $container.get(0);
+        }
+
+        _initializeGraph(containerElement, graphElements) {
+            return cytoscape({
+                container: containerElement,
+                elements: graphElements, 
+                style: [
+                    {
+                        selector: 'node',
+                        style: {
+                            'width': '10',
+                            'height': '10',
+                            'shape': 'rectangle'
+                        }
+                    },
+                    {
+                        selector: 'edge',
+                        style: {
+                            'width': 2,
+                            'curve-style': 'haystack',
+                            'haystack-radius': 0,
+                            'line-color': '#ccc',
+                            'source-arrow-shape': 'none',
+                            'mid-target-arrow-shape': 'none',
+                            'mid-source-arrow-shape': 'none',
+                            'target-arrow-shape': 'triangle',
+                            'target-arrow-fill': 'filled',
+                            'target-arrow-color': '#ccc'
+                        }
+                    },
+                ],
+                layout: {
+                    name: 'preset',
+                    pan: false,
+                    zoom: false,
+                    fit: false,
+                    padding: 0
+                },
+                pan: { x: 1, y: -18 },
+                zoomingEnabled: false,
+                userZoomingEnabled: false,
+                panningEnabled: false,
+                userPanningEnabled: false,
+                autolock: true
+            });
+        }
+
+        show() {
+            this.graphContainer.show();
+            if (!this.graphDrawn) {
+                this.graph.resize();
+                this.graphDrawn = true;
+            }
+        }
+
+        hide() {
+            this.graphContainer.hide();
+        }
+    }
+
+    var DEBUG_ENABLED = !!0;
+
+    function DEBUG() {
+        if (DEBUG_ENABLED) console.log.apply(console, arguments);
+    }
+
+    class ChokePoints {
+
+        async getChokePoints() {
+            if (this.chokePoints) {
+                return this.chokePoints;
+            }
+
+            var graphObj = new Graph();
+
+            this.borderData = await graphObj.getBorderData();
+            var graphElements = await graphObj.getGraphElements();
+            this.graph = cytoscape({
+                headless: true,
+                elements: graphElements
+            });
+            this.chokePoints = await this._determineChokePoints();
+            return this.chokePoints;
+        }
+
+        _determineChokePoints() {
+            return new Promise( (resolve) => {
+                var chokePoints = [];
+                var numTerritories = _.keys(GAME.territories).length;
+                var $buttonText = UI.$chokePointsButton.find('.button_text');
+
+                console.time('astar');
+                Utils.timedChunk(_.keys(GAME.territories), (terrId, index) => {
+                    $buttonText.text('Calculating ' + index + ' of ' + numTerritories);
+                    var routes = [];
+                    var borders = this.borderData['' + terrId];
+                    var candidateContinent = GAME.territoryToContinentMap[terrId];
+                    DEBUG('territory', terrId, GAME.territories[terrId].name, 'continent', candidateContinent);
+                    DEBUG('borders', borders);
+                    var borderTestCombos = Utils.combinations(borders, 2);
+                    _.each(borderTestCombos, (combo) => {
+                        var root = combo[0];
+                        var goal = combo[1];
+                        DEBUG('current combo', root, goal);
+                        DEBUG('combo continents', root, GAME.territoryToContinentMap[root], goal, GAME.territoryToContinentMap[goal]);
+                        // if both the root and goal are in the same continent as candidate, we can skip this combo
+                        if (GAME.territoryToContinentMap[root] === candidateContinent &&
+                            GAME.territoryToContinentMap[goal] === candidateContinent) {
+                            DEBUG('disqualifying b/c both neighbors are in same continent as candidate');
+                            return;
+                        }
+
+                        // if neither the root nor goal are in the candidate's continent, we can skip this combo
+                        if (GAME.territoryToContinentMap[root] !== candidateContinent &&
+                            GAME.territoryToContinentMap[goal] !== candidateContinent) {
+                            DEBUG('disqualifying b/c both neighbors are in a different continent from candidate');
+                            return;
+                        }
+
+                        // if we're here, one of the territories in this combo should be in the candidate's continent
+
+                        var route = this.graph.elements().aStar({
+                            root: '#' + combo[0],
+                            goal: '#' + combo[1],
+                            weight: (edge) => {
+                                if (edge.data().target == terrId) {
+                                    return 2;
+                                }
+                                return 1;
+                            },
+                            directed: true
+                        });
+                        DEBUG(route);
+                        routes.push(route);
+                    });
+
+                    if (routes.length > 0 && _.every(routes, (route) => route.distance === 3)) {
+                        DEBUG('adding choke point', terrId);
+                        chokePoints.push(terrId);
+                    }
+                }, null, () => {
+                    console.timeEnd('astar');
+                    resolve(chokePoints);
+                });
+            });
+        }
+    }
+
+    class ChokePointsView {
+
+        _resetCanvas() {
+            var $mapImage = UI.$mapImage;
+            var mapWidth = $mapImage.attr('width');
+            var mapHeight = $mapImage.attr('height');
+            var $canvas = UI.$canvas.attr('width', mapWidth).attr('height', mapHeight);
+            var ctx = $canvas.get(0).getContext('2d');
+            ctx.clearRect(0, 0, mapWidth, mapHeight);
+        }
+
+        drawChokePoints() {
+            if (!this.chokePointsObj) {
+                this.chokePointsObj = new ChokePoints();
+            }
+
+            return this.chokePointsObj.getChokePoints().then( (chokePoints) => {
+                this._resetCanvas();
+                var ctx = UI.$canvas.get(0).getContext('2d');
+
+                _.each(chokePoints, (candidate) => {
+                    var territoryData = GAME.territories[candidate];
+                    ctx.beginPath();
+                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = '#FFFFFF';
+                    ctx.arc(territoryData.xcoord, territoryData.ycoord, 20, 0, Math.PI * 2);
+                    ctx.stroke();
+                });
+            });
+        }
+    }
+
     var UI = {
         $mapImage: jQuery('#map_image'),
         $canvas: jQuery('#m_canvas'),
@@ -142,227 +397,36 @@
         ].join('')).find('thead td').css('background-image', 'url(images/white_40_opac.png)').end()
     };
 
-    var initializeGraphs = new Promise( (resolve, reject) => {
-        if (GLOBALS.borderData !== null) {
-            resolve(GLOBALS.borderData);
-        } else {
-            window.AjaxProxy.getAllBorders( (borderInfo) => {
-                GLOBALS.borderData = borderInfo;
-                resolve(borderInfo);
-            });
-        }
-    }).then((borderInfo) => {
-        var elements = [];
-        _.each(_.keys(borderInfo), (key) => {
-            var territoryData = GLOBALS.territories[key];
-            // add the nodes
-            elements.push({
-                data: {
-                    id: key,
-                    name: territoryData.name
-                },
-                position: {
-                    x: territoryData.xcoord,
-                    y: territoryData.ycoord
-                }
-            });
-            // add the edges (directed)
-            _.each(borderInfo[key], (border) => {
-                elements.push({
-                    data: {
-                        id: key + ',' + border,
-                        source: key,
-                        target: '' + border
-                    }
-                });
-            });
-        });
-
-        var $mapImage = UI.$mapImage;
-        var mapWidth = $mapImage.attr('width');
-        var mapHeight = $mapImage.attr('height');
-        UI.$graphCanvas.html('&nbsp').css({
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: mapWidth + 'px',
-            height: mapHeight + 'px',
-            zIndex: 100
-        });
-
-        GLOBALS.borderGraph = cytoscape({
-            //headless: true,
-            container: UI.$graphCanvas.get(0),
-            elements: elements,
-            style: [
-                {
-                    selector: 'node',
-                    style: {
-                        'width': '10',
-                        'height': '10',
-                        'shape': 'rectangle'
-                    }
-                },
-                {
-                    selector: 'edge',
-                    style: {
-                        'width': 2,
-                        'curve-style': 'haystack',
-                        'haystack-radius': 0,
-                        'line-color': '#ccc',
-                        'source-arrow-shape': 'none',
-                        'mid-target-arrow-shape': 'none',
-                        'mid-source-arrow-shape': 'none',
-                        'target-arrow-shape': 'triangle',
-                        'target-arrow-fill': 'filled',
-                        'target-arrow-color': '#ccc'
-                    }
-                },
-            ],
-            layout: {
-                name: 'preset',
-                pan: false,
-                zoom: false,
-                fit: false,
-                padding: 0
-            },
-            pan: { x: 1, y: -18 },
-            zoomingEnabled: false,
-            userZoomingEnabled: false,
-            panningEnabled: false,
-            userPanningEnabled: false,
-            autolock: true
-        });
-    });
-
-    var determineChokePoints = function () {
-
-        if (GLOBALS.chokePoints) {
-            drawChokePoints(GLOBALS.chokePoints);
-            return;
-        }
-
-        window.disableButton(UI.$chokePointsButton.get(0));
-        UI.$chokePointsButton.off('click');
-
-        initializeGraphs.then( () => {
-            return new Promise( (resolve, reject) => {
-                var chokePoints = [];
-                var numTerritories = _.keys(GLOBALS.territories).length;
-                var $buttonText = UI.$chokePointsButton.find('.button_text');
-
-                console.time('astar');
-                Utils.timedChunk(_.keys(GLOBALS.territories), (terrId, index) => {
-                //Utils.timedChunk([144], (terrId, index) => {
-                    $buttonText.text('Calculating ' + index + ' of ' + numTerritories);
-                    var routes = [];
-                    var borders = GLOBALS.borderData['' + terrId];
-                    var candidateContinent = GLOBALS.territoryToContinentMap[terrId];
-                    DEBUG('territory', terrId, GLOBALS.territories[terrId].name, 'continent', candidateContinent);
-                    DEBUG('borders', borders);
-                    var borderTestCombos = Utils.combinations(borders, 2);
-                    _.each(borderTestCombos, (combo) => {
-                        var root = combo[0];
-                        var goal = combo[1];
-                        DEBUG('current combo', root, goal);
-                        DEBUG('combo continents', root, GLOBALS.territoryToContinentMap[root], goal, GLOBALS.territoryToContinentMap[goal]);
-                        // if both the root and goal are in the same continent as candidate, we can skip this combo
-                        if (GLOBALS.territoryToContinentMap[root] === candidateContinent &&
-                            GLOBALS.territoryToContinentMap[goal] === candidateContinent) {
-                            DEBUG('disqualifying b/c both neighbors are in same continent as candidate');
-                            return;
-                        }
-
-                        // if neither the root nor goal are in the candidate's continent, we can skip this combo
-                        if (GLOBALS.territoryToContinentMap[root] !== candidateContinent &&
-                            GLOBALS.territoryToContinentMap[goal] !== candidateContinent) {
-                            DEBUG('disqualifying b/c both neighbors are in a different continent from candidate');
-                            return;
-                        }
-
-                        // if we're here, one of the territories in this combo should be in the candidate's continent
-
-                        var route = GLOBALS.borderGraph.elements().aStar({
-                            root: '#' + combo[0],
-                            goal: '#' + combo[1],
-                            weight: (edge) => {
-                                if (edge.data().target == terrId) {
-                                    return 2;
-                                }
-                                return 1;
-                            },
-                            directed: true
-                        });
-                        DEBUG(route);
-                        routes.push(route);
-                    });
-
-                    if (routes.length > 0 && _.every(routes, (route) => route.distance === 3)) {
-                        DEBUG('adding choke point', terrId);
-                        chokePoints.push(terrId);
-                    }
-                }, null, () => {
-                    console.timeEnd('astar');
-                    resolve(chokePoints);
-                });
-            });
-        }).then( (chokePoints) => {
-            DEBUG(chokePoints);
-            GLOBALS.chokePoints = chokePoints;
-
-            drawChokePoints(chokePoints);
-
-            UI.$chokePointsToggle.find('input').on('click', function () {
-                if (this.checked) {
-                    drawChokePoints(GLOBALS.chokePoints);
-                } else {
-                    resetCanvas();
-                }
-            });
-            UI.$chokePointsButton.replaceWith(UI.$chokePointsToggle);
-        });
-    };
-
-    var resetCanvas = function () {
-        var $mapImage = UI.$mapImage;
-        var mapWidth = $mapImage.attr('width');
-        var mapHeight = $mapImage.attr('height');
-        var $canvas = UI.$canvas.attr('width', mapWidth).attr('height', mapHeight);
-        var ctx = $canvas.get(0).getContext('2d');
-        ctx.clearRect(0, 0, mapWidth, mapHeight);
-    };
-
-    var drawChokePoints = function (chokePoints) {
-        resetCanvas();
-        var ctx = UI.$canvas.get(0).getContext('2d');
-
-        _.each(chokePoints, (candidate) => {
-            var territoryData = GLOBALS.territories[candidate];
-            ctx.beginPath();
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.arc(territoryData.xcoord, territoryData.ycoord, 20, 0, Math.PI * 2);
-            ctx.stroke();
-        });
-    };
-
     function setupUI() {
         // fix huge annoyance of having attack reports always enabled by default...
         jQuery('#attack_reports_cb').trigger('click');
-
-        UI.$chokePointsButton.on('click', determineChokePoints);
+        
+        UI.$chokePointsButton.on('click', function () {
+            window.disableButton(this);
+            jQuery(this).off('click');
+            var chokePointsViewObj = new ChokePointsView();
+            chokePointsViewObj.drawChokePoints().then( () => {
+                UI.$chokePointsToggle.find('input').on('click', function () {
+                    if (this.checked) {
+                        chokePointsViewObj.drawChokePoints();
+                    } else {
+                        chokePointsViewObj._resetCanvas();
+                    }
+                });
+                UI.$chokePointsButton.replaceWith(UI.$chokePointsToggle);
+            });
+        });
         UI.addToToolsContainer(UI.$chokePointsButton);
 
-        UI.$graphToggle.find('input').on('click', function () {
-            if (this.checked) {
-                UI.$graphCanvas.show();
-                if (!GLOBALS.graphDrawn) {
-                    GLOBALS.borderGraph.resize();
-                    GLOBALS.graphDrawn = true;
+        var graphViewObj = new GraphView();
+        graphViewObj.init().then( () => {
+            UI.$graphToggle.find('input').on('click', function () {
+                if (this.checked) {
+                    graphViewObj.show();
+                } else {
+                    graphViewObj.hide();
                 }
-            } else {
-                UI.$graphCanvas.hide();
-            }
+            });
         });
         UI.addToToolsContainer(UI.$graphToggle);
 
@@ -371,7 +435,7 @@
     }
 
     function createTeamDataTable() {
-        if (!GLOBALS.isTeamGame) {
+        if (!GAME.isTeamGame) {
             return;
         }
 
@@ -389,7 +453,7 @@
         UI.$playerTable.find('tbody tr').each(function (index, row) {
             var territoryCount = 0, troopCount = 0, cardCount = 0;
             var playerName = jQuery.trim(jQuery(row).find('td').eq(1).text());
-            var playerObj = _.find(_.values(GLOBALS.players), function (obj) { return obj.name.indexOf(playerName) === 0; });
+            var playerObj = _.find(_.values(GAME.players), function (obj) { return obj.name.indexOf(playerName) === 0; });
             var teamId = '' + playerObj.teamNumber;
             var $testColumn = jQuery(row).find('td').eq(2);
             if (! $testColumn.attr('colspan')) {
@@ -418,7 +482,7 @@
             }
         });
 
-        var totalTerritories = _.keys(GLOBALS.territories).length;
+        var totalTerritories = _.keys(GAME.territories).length;
         var totalTroops = _.reduce(_.values(teamData), function (memo, data) { return memo + data.troops; }, 0);
 
         var $rowTarget = UI.$teamSummaryTable.find('tbody');

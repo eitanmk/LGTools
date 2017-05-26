@@ -1,10 +1,12 @@
 {
   "name": "lg-tools",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Enhancements to LandGrab",
   "author": "Eitan Konigsburg",
+  "repository": "https://github.com/eitanmk/LGTools.git",
   "devDependencies": {
     "grunt": "^1.0.1",
+    "grunt-eslint": "^19.0.0",
     "grunt-rollup": "^1.0.1"
   }
 }

@@ -1,57 +1,65 @@
-import {DEBUG} from './debug.js';
-import {GLOBALS} from './globals.js';
-import {UI} from './ui.js';
-import {Utils} from './utils.js';
-import {initializeGraphs} from './graph-display.js';
+import { DEBUG } from './debug.js';
+import { GAME } from './game.js';
+import { UI } from './ui.js';
+import { Utils } from './utils.js';
+import { Graph } from './graph.js';
 
-var determineChokePoints = function () {
+class ChokePoints {
 
-    if (GLOBALS.chokePoints) {
-        drawChokePoints(GLOBALS.chokePoints);
-        return;
+    async getChokePoints() {
+        if (this.chokePoints) {
+            return this.chokePoints;
+        }
+
+        var graphObj = new Graph();
+
+        this.borderData = await graphObj.getBorderData();
+        var graphElements = await graphObj.getGraphElements();
+        this.graph = cytoscape({
+            headless: true,
+            elements: graphElements
+        });
+        this.chokePoints = await this._determineChokePoints();
+        return this.chokePoints;
     }
 
-    window.disableButton(UI.$chokePointsButton.get(0));
-    UI.$chokePointsButton.off('click');
-
-    initializeGraphs.then( () => {
-        return new Promise( (resolve, reject) => {
+    _determineChokePoints() {
+        return new Promise( (resolve) => {
             var chokePoints = [];
-            var numTerritories = _.keys(GLOBALS.territories).length;
+            var numTerritories = _.keys(GAME.territories).length;
             var $buttonText = UI.$chokePointsButton.find('.button_text');
 
             console.time('astar');
-            Utils.timedChunk(_.keys(GLOBALS.territories), (terrId, index) => {
-            //Utils.timedChunk([144], (terrId, index) => {
+            Utils.timedChunk(_.keys(GAME.territories), (terrId, index) => {
                 $buttonText.text('Calculating ' + index + ' of ' + numTerritories);
                 var routes = [];
-                var borders = GLOBALS.borderData['' + terrId];
-                var candidateContinent = GLOBALS.territoryToContinentMap[terrId];
-                DEBUG('territory', terrId, GLOBALS.territories[terrId].name, 'continent', candidateContinent);
+                var borders = this.borderData['' + terrId];
+                var candidateContinent = GAME.territoryToContinentMap[terrId];
+                DEBUG('territory', terrId, GAME.territories[terrId].name, 'continent', candidateContinent);
                 DEBUG('borders', borders);
                 var borderTestCombos = Utils.combinations(borders, 2);
                 _.each(borderTestCombos, (combo) => {
                     var root = combo[0];
                     var goal = combo[1];
                     DEBUG('current combo', root, goal);
-                    DEBUG('combo continents', root, GLOBALS.territoryToContinentMap[root], goal, GLOBALS.territoryToContinentMap[goal]);
+                    DEBUG('combo continents', root, GAME.territoryToContinentMap[root], goal, GAME.territoryToContinentMap[goal]);
                     // if both the root and goal are in the same continent as candidate, we can skip this combo
-                    if (GLOBALS.territoryToContinentMap[root] === candidateContinent &&
-                        GLOBALS.territoryToContinentMap[goal] === candidateContinent) {
+                    if (GAME.territoryToContinentMap[root] === candidateContinent &&
+                        GAME.territoryToContinentMap[goal] === candidateContinent) {
                         DEBUG('disqualifying b/c both neighbors are in same continent as candidate');
                         return;
                     }
 
                     // if neither the root nor goal are in the candidate's continent, we can skip this combo
-                    if (GLOBALS.territoryToContinentMap[root] !== candidateContinent &&
-                        GLOBALS.territoryToContinentMap[goal] !== candidateContinent) {
+                    if (GAME.territoryToContinentMap[root] !== candidateContinent &&
+                        GAME.territoryToContinentMap[goal] !== candidateContinent) {
                         DEBUG('disqualifying b/c both neighbors are in a different continent from candidate');
                         return;
                     }
 
                     // if we're here, one of the territories in this combo should be in the candidate's continent
 
-                    var route = GLOBALS.borderGraph.elements().aStar({
+                    var route = this.graph.elements().aStar({
                         root: '#' + combo[0],
                         goal: '#' + combo[1],
                         weight: (edge) => {
@@ -75,66 +83,7 @@ var determineChokePoints = function () {
                 resolve(chokePoints);
             });
         });
-    }).then( (chokePoints) => {
-        DEBUG(chokePoints);
-        GLOBALS.chokePoints = chokePoints;
+    }
+}
 
-        drawChokePoints(chokePoints);
-
-        UI.$chokePointsToggle.find('input').on('click', function () {
-            if (this.checked) {
-                drawChokePoints(GLOBALS.chokePoints);
-            } else {
-                resetCanvas();
-            }
-        });
-        UI.$chokePointsButton.replaceWith(UI.$chokePointsToggle);
-    });
-};
-
-var resetCanvas = function () {
-    var $mapImage = UI.$mapImage;
-    var mapWidth = $mapImage.attr('width');
-    var mapHeight = $mapImage.attr('height');
-    var $canvas = UI.$canvas.attr('width', mapWidth).attr('height', mapHeight);
-    var ctx = $canvas.get(0).getContext('2d');
-    ctx.clearRect(0, 0, mapWidth, mapHeight);
-};
-
-var drawChokePoints = function (chokePoints) {
-    resetCanvas();
-    var ctx = UI.$canvas.get(0).getContext('2d');
-
-    _.each(chokePoints, (candidate) => {
-        var territoryData = GLOBALS.territories[candidate];
-        ctx.beginPath();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.arc(territoryData.xcoord, territoryData.ycoord, 20, 0, Math.PI * 2);
-        ctx.stroke();
-    });
-};
-
-export function setupUI() {
-    // fix huge annoyance of having attack reports always enabled by default...
-    jQuery('#attack_reports_cb').trigger('click');
-
-    UI.$chokePointsButton.on('click', determineChokePoints);
-    UI.addToToolsContainer(UI.$chokePointsButton);
-
-    UI.$graphToggle.find('input').on('click', function () {
-        if (this.checked) {
-            UI.$graphCanvas.show();
-            if (!GLOBALS.graphDrawn) {
-                GLOBALS.borderGraph.resize();
-                GLOBALS.graphDrawn = true;
-            }
-        } else {
-            UI.$graphCanvas.hide();
-        }
-    });
-    UI.addToToolsContainer(UI.$graphToggle);
-
-    UI.$anchorPoint.append(UI.$smToolsHeading);
-    UI.$anchorPoint.append(UI.$toolsContainer);
-};
+export { ChokePoints };

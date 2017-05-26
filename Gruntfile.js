@@ -13,11 +13,19 @@ module.exports = function (grunt) {
                     'dist/lgtools.user.js': 'gm/main.js',
                 }
             }
+        },
+        eslint: {
+            options: {
+                configFile: '.eslintrc.json'
+            },
+            target: ['gm/*.js']
         }
     });
 
     grunt.loadNpmTasks('grunt-rollup');
+    grunt.loadNpmTasks('grunt-eslint');
 
+    grunt.registerTask('lint', 'eslint');
     grunt.registerTask('default', 'build');
     grunt.registerTask('build', ['rollup', 'prepend']);
     grunt.registerTask('prepend', function () {
