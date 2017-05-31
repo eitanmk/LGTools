@@ -10,7 +10,7 @@ module.exports = function (grunt) {
                     format: 'iife'
                 },
                 files: {
-                    'dist/lgtools.user.js': 'gm/main.js',
+                    'dist/lgtools.user.js': 'src/main.js',
                 }
             }
         },
@@ -18,7 +18,7 @@ module.exports = function (grunt) {
             options: {
                 configFile: '.eslintrc.json'
             },
-            target: ['gm/*.js']
+            target: ['src/*.js']
         }
     });
 
@@ -27,7 +27,7 @@ module.exports = function (grunt) {
 
     grunt.registerTask('lint', 'eslint');
     grunt.registerTask('default', 'build');
-    grunt.registerTask('build', ['rollup', 'prepend']);
+    grunt.registerTask('build', ['lint', 'rollup', 'prepend']);
     grunt.registerTask('prepend', function () {
         var headerTemplate = grunt.file.read('header.template.js');
         var headerText = grunt.template.process(headerTemplate, grunt.config('pkg'));

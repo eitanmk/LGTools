@@ -1,6 +1,11 @@
 import { Graph } from './graph.js';
+import { UI_Utils } from './ui-utils.js';
 
 class GraphView {
+
+    constructor() {
+        this.$graphToggle = UI_Utils.makeCheckbox('graph_toggle', 'Toggle graph layer', false);
+    }
 
     async init() {
         if (!this.graph) {
@@ -11,10 +16,23 @@ class GraphView {
         }
     }
 
+    getControl() {
+        var graphViewObj = this;
+        this.init().then( () => {
+            graphViewObj.$graphToggle.find('input').on('click', function () {
+                if (this.checked) {
+                    graphViewObj.show();
+                } else {
+                    graphViewObj.hide();
+                }
+            });
+        });
+
+        return this.$graphToggle;
+    }
+
     _setupGraphContainer() {
-        var $mapImage = jQuery('#map_image');
-        var mapWidth = $mapImage.attr('width');
-        var mapHeight = $mapImage.attr('height');
+        var [mapWidth, mapHeight] = UI_Utils.mapDimensions();
 
         var $container = jQuery('<div/>')
             .hide()
@@ -28,7 +46,7 @@ class GraphView {
                 height: mapHeight + 'px',
                 zIndex: 100
             })
-            .insertAfter(jQuery('#m_canvas'));
+            .insertAfter('#m_canvas');
 
         return $container.get(0);
     }
@@ -36,7 +54,7 @@ class GraphView {
     _initializeGraph(containerElement, graphElements) {
         return cytoscape({
             container: containerElement,
-            elements: graphElements, 
+            elements: graphElements,
             style: [
                 {
                     selector: 'node',
@@ -80,10 +98,7 @@ class GraphView {
 
     show() {
         this.graphContainer.show();
-        if (!this.graphDrawn) {
-            this.graph.resize();
-            this.graphDrawn = true;
-        }
+        this.graph.resize();
     }
 
     hide() {
@@ -91,4 +106,5 @@ class GraphView {
     }
 }
 
-export { GraphView };
+export let graphView = new GraphView();
+

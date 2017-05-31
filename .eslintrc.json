@@ -30,6 +30,7 @@
             "error",
             "always"
         ],
+        "no-trailing-spaces": "error",
         "no-console": [
             "error",
             { "allow": [ "time", "timeEnd", "log" ] }

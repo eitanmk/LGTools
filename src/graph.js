@@ -2,20 +2,12 @@ import { GAME } from './game.js';
 
 class Graph {
 
-    getBorderData() {
-        return new Promise( (resolve) => {
-            if (this.borderData) {
-                resolve(this.borderData);
-            } else {
-                window.AjaxProxy.getAllBorders( (borderInfo) => {
-                    this.borderData = borderInfo;
-                    resolve(borderInfo);
-                });
-            }
-        });
-    }
+    async getGraphElements() {
+        if (this.graphElements) {
+            return this.graphElements;
+        }
 
-    _createGraphElements(borderInfo) {
+        var borderInfo = await GAME.getBorderData();
         var elements = [];
         _.each(_.keys(borderInfo), (key) => {
             var territoryData = GAME.territories[key];
@@ -43,16 +35,7 @@ class Graph {
         });
 
         this.graphElements = elements;
-        return this.graphElements; 
-    }
-
-    async getGraphElements() {
-        if (this.graphElements) {
-            return this.graphElements;
-        }
-
-        var borderInfo = await this.getBorderData();
-        return this._createGraphElements(borderInfo);
+        return this.graphElements;
     }
 }
 
