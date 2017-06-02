@@ -9,13 +9,15 @@ class Graph {
 
         var borderInfo = await GAME.getBorderData();
         var elements = [];
-        _.each(_.keys(borderInfo), (key) => {
-            var territoryData = GAME.territories[key];
+        _.each(_.keys(borderInfo), (terrId) => {
+            var territoryData = GAME.territories[terrId];
             // add the nodes
             elements.push({
                 data: {
-                    id: key,
-                    name: territoryData.name
+                    id: terrId,
+                    name: territoryData.name,
+                    owner: territoryData.owner,
+                    armies: territoryData.armies
                 },
                 position: {
                     x: territoryData.xcoord,
@@ -23,11 +25,11 @@ class Graph {
                 }
             });
             // add the edges (directed)
-            _.each(borderInfo[key], (border) => {
+            _.each(borderInfo[terrId], (border) => {
                 elements.push({
                     data: {
-                        id: key + ',' + border,
-                        source: key,
+                        id: terrId + ',' + border,
+                        source: terrId,
                         target: '' + border
                     }
                 });

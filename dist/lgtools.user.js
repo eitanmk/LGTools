@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         lg-tools
-// @version      0.0.3
+// @version      0.0.4
 // @description  Enhancements to LandGrab
 // @include      http://landgrab.net/landgrab/ViewBoard
 // @include      http://landgrab.net/landgrab/RealtimeBoard
@@ -15,6 +15,10 @@
     'use strict';
 
     class Game {
+
+        constructor() {
+            this.oldHandleTerritoryClick = window.handleTerritoryClick;
+        }
 
         get players() {
             return window.players;
@@ -36,6 +40,10 @@
             return window.teamGame === true;
         }
 
+        showPopup(msg, type) {
+            window.showPopupMessage(msg, type);
+        }
+
         // perhaps make borderData private someday, using Symbol or #
         getBorderData() {
             return new Promise( (resolve) => {
@@ -47,6 +55,17 @@
                         resolve(borderInfo);
                     });
                 }
+            });
+        }
+
+        receiveTerritoryClick(handlerFn) {
+            return new Promise( (resolve) => {
+                window.handleTerritoryClick = (...args) => {
+                    handlerFn(...args).then( () => {
+                        window.handleTerritoryClick = this.oldHandleTerritoryClick;
+                        resolve();
+                    });
+                };
             });
         }
 
@@ -63,13 +82,15 @@
 
             var borderInfo = await GAME.getBorderData();
             var elements = [];
-            _.each(_.keys(borderInfo), (key) => {
-                var territoryData = GAME.territories[key];
+            _.each(_.keys(borderInfo), (terrId) => {
+                var territoryData = GAME.territories[terrId];
                 // add the nodes
                 elements.push({
                     data: {
-                        id: key,
-                        name: territoryData.name
+                        id: terrId,
+                        name: territoryData.name,
+                        owner: territoryData.owner,
+                        armies: territoryData.armies
                     },
                     position: {
                         x: territoryData.xcoord,
@@ -77,11 +98,11 @@
                     }
                 });
                 // add the edges (directed)
-                _.each(borderInfo[key], (border) => {
+                _.each(borderInfo[terrId], (border) => {
                     elements.push({
                         data: {
-                            id: key + ',' + border,
-                            source: key,
+                            id: terrId + ',' + border,
+                            source: terrId,
                             target: '' + border
                         }
                     });
@@ -448,6 +469,278 @@
 
     let chokePointsView = new ChokePointsView();
 
+    class EliminationPath {
+
+        constructor(view) {
+            this.viewObj = view;
+        }
+
+        async getEliminationPath(playerId, startTerritoryId) {
+            var borderData = await GAME.getBorderData();
+
+            var cluster = await this._getCluster(playerId, startTerritoryId, borderData);
+            DEBUG(cluster);
+
+            var clusterBorderData = {};
+            cluster.forEach( (terrId) => {
+                clusterBorderData[terrId] = borderData[terrId];
+            });
+            DEBUG(clusterBorderData);
+
+            var eliminationPath = await this._findHamiltonianPath(startTerritoryId, clusterBorderData, cluster.length);
+            return eliminationPath;
+        }
+
+        _getCluster(playerId, startTerritoryId, borderData) {
+
+            let recurse = function (territoryId, playerId, borderData, visitedHash, cluster) {
+                cluster.push(territoryId);
+                visitedHash[territoryId] = true;
+
+                let neighbors = borderData[territoryId];
+                for (let i = 0, len = neighbors.length; i < len; ++i) {
+                    let curNeighbor = neighbors[i];
+                    if (visitedHash[curNeighbor] === false && GAME.territories[curNeighbor].owner == playerId) {
+                        recurse(curNeighbor, playerId, borderData, visitedHash, cluster);
+                    }
+
+                }
+            };
+
+            return new Promise( (resolve) => {
+                let cluster = [];
+                let numTerritories = _.keys(GAME.territories).length;
+                let visitedHash = new Array(numTerritories);
+
+                // set all indices to false
+                visitedHash.fill(false);
+
+                visitedHash[startTerritoryId] = true;
+                cluster.push(startTerritoryId);
+
+                let startNeighbors = borderData[startTerritoryId];
+                for (let i = 0, len = startNeighbors.length; i < len; ++i) {
+                    let curNeighbor = startNeighbors[i];
+                    if (visitedHash[curNeighbor] === false && GAME.territories[curNeighbor].owner == playerId) {
+                        recurse(curNeighbor, playerId, borderData, visitedHash, cluster);
+                    }
+
+                }
+
+                resolve(cluster);
+            });
+        }
+
+        _findHamiltonianPath(startTerritoryId, borderData, pathLength) {
+
+            let recurse = function (territoryId, borderData, inStackHash, pathStack, pathLength) {
+                DEBUG('dfs', territoryId, pathStack.length);
+
+                // base case: if stack count is the same as the number of nodes, we're done
+                if (pathStack.length == pathLength) {
+                    return true;
+                }
+
+                let neighbors = borderData[territoryId];
+
+                for (let i = 0, len = neighbors.length; i < len; ++i) {
+                    let curNeighbor = neighbors[i];
+                    DEBUG(curNeighbor, inStackHash[curNeighbor]);
+                    if (!borderData[curNeighbor]) continue;
+
+                    if (inStackHash[curNeighbor] === false) {
+                        inStackHash[curNeighbor] = true;
+                        pathStack.push(curNeighbor);
+
+                        if (recurse(curNeighbor, borderData, inStackHash, pathStack, pathLength)) {
+                            DEBUG('returning true');
+                            return true;
+                        }
+                        DEBUG(territoryId, 'post dfs');
+                        inStackHash[curNeighbor] = false;
+                        pathStack.pop();
+                    }
+                }
+                DEBUG('returning false');
+                return false;
+            };
+
+            return new Promise( (resolve) => {
+                let pathStack = [];
+                let numTerritories = _.keys(GAME.territories).length;
+                let inStackHash = new Array(numTerritories);
+
+                // set all indices to false
+                inStackHash.fill(false);
+
+                inStackHash[startTerritoryId] = true;
+                pathStack.push(startTerritoryId);
+
+                let startNeighbors = borderData[startTerritoryId];
+                for (let i = 0, len = startNeighbors.length; i < len; ++i) {
+                    let curNeighbor = startNeighbors[i];
+                    if (!borderData[curNeighbor]) continue;
+
+                    inStackHash[curNeighbor] = true;
+                    pathStack.push(curNeighbor);
+
+                    if (recurse(curNeighbor, borderData, inStackHash, pathStack, pathLength)) {
+                        resolve(pathStack);
+                        return;
+                    }
+                    inStackHash[curNeighbor] = false;
+                    pathStack.pop();
+                }
+
+                resolve(false);
+            });
+        }
+    }
+
+    class EliminationPathView {
+
+        constructor() {
+            this.$eliminationPathButton = UI_Utils.makeButton('find elimination path');
+            this.$eliminationPathButtonText = this.$eliminationPathButton.find('.button_text');
+        }
+
+        getControl() {
+            var elimPathObj = this;
+
+            let clickHandler = function () {
+                if (elimPathObj.$graphContainer) {
+                    elimPathObj.$graphContainer.remove();
+                }
+                window.disableButton(this);
+                let $el = jQuery(this);
+                $el.off('click');
+                let originalText = elimPathObj.$eliminationPathButtonText.text();
+                elimPathObj.$eliminationPathButtonText.text('Select starting territory...');
+                GAME.receiveTerritoryClick(elimPathObj.showHamiltonianPath.bind(elimPathObj))
+                    .then( () => {
+                        window.enableButton(this);
+                        $el.on('click', clickHandler);
+                        elimPathObj.$eliminationPathButtonText.text(originalText);
+                    });
+            };
+
+            this.$eliminationPathButton.on('click', clickHandler);
+
+            return this.$eliminationPathButton;
+        }
+
+        async showHamiltonianPath(territoryId, territoryName, ownerId) {
+            let eliminationPathObj = new EliminationPath(null);
+            let path = await eliminationPathObj.getEliminationPath(ownerId, territoryId);
+
+            if (path.length > 0) {
+                this.$graphContainer = this._setupGraphContainer();
+                let graphElements = this._getGraphElements(path);
+                this.routeGraph = this._initializeGraph(this.$graphContainer.get(0), graphElements);
+                this.$graphContainer.show();
+                this.routeGraph.resize();
+            } else {
+                GAME.showPopup('No elimination path found.');
+            }
+        }
+
+        _setupGraphContainer() {
+            var [mapWidth, mapHeight] = UI_Utils.mapDimensions();
+
+            var $container = jQuery('<div/>')
+                .hide()
+                .attr('id', 'elim_path_graph')
+                .html('&nbsp')
+                .css({
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: mapWidth + 'px',
+                    height: mapHeight + 'px',
+                    zIndex: 1
+                })
+                .insertAfter('#m_canvas');
+
+            return $container;
+        }
+
+        _getGraphElements(path) {
+            let elements = [];
+            for (let i = 0, len = path.length; i < len; ++i) {
+                let terrId = path[i];
+                let territoryData = GAME.territories[terrId];
+                elements.push({
+                    data: {
+                        id: terrId
+                    },
+                    position: {
+                        x: territoryData.xcoord,
+                        y: territoryData.ycoord
+                    }
+                });
+                // edge to next node in path
+                //  if there is a next node
+                if (i+1 < len) {
+                    elements.push({
+                        data: {
+                            id: terrId + ',' + path[i+1],
+                            source: terrId,
+                            target: '' + path[i+1]
+                        }
+                    });
+                }
+            }
+            return elements;
+        }
+
+        _initializeGraph(containerElement, graphElements) {
+            return cytoscape({
+                container: containerElement,
+                elements: graphElements,
+                style: [
+                    {
+                        selector: 'node',
+                        style: {
+                            'width': '10',
+                            'height': '10',
+                            'shape': 'rectangle'
+                        }
+                    },
+                    {
+                        selector: 'edge',
+                        style: {
+                            'width': 2,
+                            'curve-style': 'haystack',
+                            'haystack-radius': 0,
+                            'line-color': '#f00',
+                            'source-arrow-shape': 'none',
+                            'mid-target-arrow-shape': 'none',
+                            'mid-source-arrow-shape': 'none',
+                            'target-arrow-shape': 'triangle',
+                            'target-arrow-fill': 'filled',
+                            'target-arrow-color': '#f00'
+                        }
+                    },
+                ],
+                layout: {
+                    name: 'preset',
+                    pan: false,
+                    zoom: false,
+                    fit: false,
+                    padding: 0
+                },
+                pan: { x: 1, y: -18 },
+                zoomingEnabled: false,
+                userZoomingEnabled: false,
+                panningEnabled: false,
+                userPanningEnabled: false,
+                autolock: true
+            });
+        }
+    }
+
+    let eliminationPathView = new EliminationPathView();
+
     class UI {
 
         static setupUI() {
@@ -470,6 +763,7 @@
             $anchorPoint.append($toolsContainer);
 
             let $controlInsertionPoint = $toolsContainer.find('table tr td').first();
+            $controlInsertionPoint.append(eliminationPathView.getControl());
             $controlInsertionPoint.append(chokePointsView.getControl());
             $controlInsertionPoint.append(graphView.getControl());
         }

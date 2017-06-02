@@ -1,5 +1,9 @@
 class Game {
 
+    constructor() {
+        this.oldHandleTerritoryClick = window.handleTerritoryClick;
+    }
+
     get players() {
         return window.players;
     }
@@ -20,6 +24,10 @@ class Game {
         return window.teamGame === true;
     }
 
+    showPopup(msg, type) {
+        window.showPopupMessage(msg, type);
+    }
+
     // perhaps make borderData private someday, using Symbol or #
     getBorderData() {
         return new Promise( (resolve) => {
@@ -31,6 +39,17 @@ class Game {
                     resolve(borderInfo);
                 });
             }
+        });
+    }
+
+    receiveTerritoryClick(handlerFn) {
+        return new Promise( (resolve) => {
+            window.handleTerritoryClick = (...args) => {
+                handlerFn(...args).then( () => {
+                    window.handleTerritoryClick = this.oldHandleTerritoryClick;
+                    resolve();
+                });
+            };
         });
     }
 
