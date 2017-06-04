@@ -119,11 +119,11 @@ class EliminationPathView {
                         'haystack-radius': 0,
                         'line-color': '#f00',
                         'source-arrow-shape': 'none',
-                        'mid-target-arrow-shape': 'none',
                         'mid-source-arrow-shape': 'none',
-                        'target-arrow-shape': 'triangle',
-                        'target-arrow-fill': 'filled',
-                        'target-arrow-color': '#f00'
+                        'mid-target-arrow-shape': 'triangle',
+                        'mid-target-arrow-fill': 'filled',
+                        'mid-target-arrow-color': '#f00',
+                        'target-arrow-shape': 'none'
                     }
                 },
             ],

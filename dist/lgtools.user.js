@@ -1,18 +1,31 @@
 // ==UserScript==
 // @name         lg-tools
-// @version      0.0.4
+// @version      0.0.5
 // @description  Enhancements to LandGrab
-// @include      http://landgrab.net/landgrab/ViewBoard
-// @include      http://landgrab.net/landgrab/RealtimeBoard
+// @include      http://landgrab.net/landgrab/*
 // @grant        none
 // @require      https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js
 // @require      https://raw.githubusercontent.com/eitanmk/LGTools/master/deps/cytoscape-2.5.4.js
 // ==/UserScript==
 
+jQuery.noConflict();
 
 (function () {
     'use strict';
+
+    class Router {
+
+        static route(pattern, callback) {
+            if ( !_.isRegExp(pattern) ) {
+                return;
+            }
+            if (pattern.test(document.URL)) {
+                callback();
+            }
+        }
+
+    }
 
     class Game {
 
@@ -34,6 +47,10 @@
 
         get bridgesAndWallsEnabled() {
             return window.bridgesAndWallsEnabled;
+        }
+
+        get gameNumber() {
+            return window.beanGameNumber;
         }
 
         get isTeamGame() {
@@ -72,6 +89,64 @@
     }
 
     let GAME = new Game();
+
+    class GameSwitcher {
+
+        constructor() {
+            this.storageKey = 'lgtools.activeGames';
+        }
+
+        updateActiveGames() {
+            // should only run on /Home
+            let activeGameData = [];
+            jQuery('[id^=game_div_].gb_hl, [id^=game_div_].gb_n').each( function () {
+                let gameId = this.id.match(/game_div_(\d+)/)[1];
+                let gameName = jQuery(this).find('.gamename a').text();
+
+                activeGameData.push({ id: gameId, name: gameName });
+            });
+            window.localStorage.setItem(this.storageKey, JSON.stringify(activeGameData));
+        }
+
+        addToPage() {
+            // remove the purchase nag if it's there. i want the space
+            jQuery('#ConsiderPurchase').remove();
+
+            let $container = jQuery('<div><select></select></div>').css({
+                position: 'absolute',
+                top: '35px',
+                left: '500px',
+                zIndex: 11
+            }).appendTo('body');
+
+            let activeGameDataStr = window.localStorage.getItem(this.storageKey);
+            if (!activeGameDataStr) {
+                return;
+            }
+            // fuck if i know why JSON.parse is needed twice
+            let activeGameData = JSON.parse(JSON.parse(activeGameDataStr));
+            console.log(activeGameData);
+
+            let $selectTarget = $container.find('select');
+            if (!GAME.gameNumber) {
+                $selectTarget.append('<option value="0">Select game:</option>');
+            }
+            _.each(activeGameData, function (data) {
+                let selectedAttr = GAME.gameNumber && GAME.gameNumber == data.id ? ' selected' : '';
+                $selectTarget.append(`<option value="${data.id}"${selectedAttr}>${data.name}</option>`);
+            });
+
+            $selectTarget.on('change', function (ev) {
+                let val = ev.target.value;
+                if (val == 0) {
+                    return;
+                }
+                window.location = '/landgrab/Home?g=' + val;
+            });
+        }
+    }
+
+    let gameSwitcher = new GameSwitcher();
 
     class Graph {
 
@@ -714,11 +789,11 @@
                             'haystack-radius': 0,
                             'line-color': '#f00',
                             'source-arrow-shape': 'none',
-                            'mid-target-arrow-shape': 'none',
                             'mid-source-arrow-shape': 'none',
-                            'target-arrow-shape': 'triangle',
-                            'target-arrow-fill': 'filled',
-                            'target-arrow-color': '#f00'
+                            'mid-target-arrow-shape': 'triangle',
+                            'mid-target-arrow-fill': 'filled',
+                            'mid-target-arrow-color': '#f00',
+                            'target-arrow-shape': 'none'
                         }
                     },
                 ],
@@ -847,9 +922,16 @@
 
     let teamData = new TeamData();
 
-    jQuery.noConflict(); //needed?
+    Router.route(/Home$/, () => {
+        gameSwitcher.updateActiveGames();
+    });
 
-    UI.setupUI();
-    teamData.drawSummaryTable();
+    Router.route(/ViewBoard$/, () => {
+        UI.setupUI();
+        teamData.drawSummaryTable();
+    });
+
+    // all pages
+    gameSwitcher.addToPage();
 
 }());

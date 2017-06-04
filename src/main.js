@@ -1,7 +1,16 @@
+import { Router } from './router.js';
+import { gameSwitcher } from './game-switcher.js';
 import { UI } from './ui.js';
 import { teamData } from './team-data.js';
 
-jQuery.noConflict(); //needed?
+Router.route(/Home$/, () => {
+    gameSwitcher.updateActiveGames();
+});
 
-UI.setupUI();
-teamData.drawSummaryTable();
+Router.route(/ViewBoard$/, () => {
+    UI.setupUI();
+    teamData.drawSummaryTable();
+});
+
+// all pages
+gameSwitcher.addToPage();

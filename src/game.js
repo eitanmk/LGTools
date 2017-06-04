@@ -20,6 +20,10 @@ class Game {
         return window.bridgesAndWallsEnabled;
     }
 
+    get gameNumber() {
+        return window.beanGameNumber;
+    }
+
     get isTeamGame() {
         return window.teamGame === true;
     }
