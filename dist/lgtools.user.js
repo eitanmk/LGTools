@@ -594,21 +594,7 @@ jQuery.noConflict();
                 // set all indices to false
                 visitedHash.fill(false);
 
-                visitedHash[startTerritoryId] = true;
-                cluster.push(startTerritoryId);
-
                 recurse(startTerritoryId, playerId, borderData, visitedHash, cluster);
-
-                /*
-                let startNeighbors = borderData[startTerritoryId];
-                for (let i = 0, len = startNeighbors.length; i < len; ++i) {
-                    let curNeighbor = startNeighbors[i];
-                    if (visitedHash[curNeighbor] === false && GAME.territories[curNeighbor].owner == playerId) {
-                        recurse(curNeighbor, playerId, borderData, visitedHash, cluster);
-                    }
-
-                }
-                */
 
                 resolve(cluster);
             });
@@ -626,14 +612,14 @@ jQuery.noConflict();
 
                 let curContinentId = GAME.territoryToContinentMap[territoryId];
                 let neighbors = borderData[territoryId];
-                console.log('neighbors before sort', ...neighbors);
-                neighbors.sort(function (a) {
-                    if (GAME.territoryToContinentMap[a] == curContinentId) {
-                        return -1;
+                neighbors.sort(function (a, b) {
+                    if (GAME.territoryToContinentMap[a] == GAME.territoryToContinentMap[b]) {
+                        return 0;
+                    } else if (GAME.territoryToContinentMap[b] == curContinentId) {
+                        return 1;
                     }
                     return 0;
                 });
-                console.log('neighbors after sort', ...neighbors);
 
                 for (let i = 0, len = neighbors.length; i < len; ++i) {
                     let curNeighbor = neighbors[i];
