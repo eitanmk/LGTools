@@ -597,6 +597,9 @@ jQuery.noConflict();
                 visitedHash[startTerritoryId] = true;
                 cluster.push(startTerritoryId);
 
+                recurse(startTerritoryId, playerId, borderData, visitedHash, cluster);
+
+                /*
                 let startNeighbors = borderData[startTerritoryId];
                 for (let i = 0, len = startNeighbors.length; i < len; ++i) {
                     let curNeighbor = startNeighbors[i];
@@ -605,6 +608,7 @@ jQuery.noConflict();
                     }
 
                 }
+                */
 
                 resolve(cluster);
             });
@@ -620,7 +624,16 @@ jQuery.noConflict();
                     return true;
                 }
 
+                let curContinentId = GAME.territoryToContinentMap[territoryId];
                 let neighbors = borderData[territoryId];
+                console.log('neighbors before sort', ...neighbors);
+                neighbors.sort(function (a) {
+                    if (GAME.territoryToContinentMap[a] == curContinentId) {
+                        return -1;
+                    }
+                    return 0;
+                });
+                console.log('neighbors after sort', ...neighbors);
 
                 for (let i = 0, len = neighbors.length; i < len; ++i) {
                     let curNeighbor = neighbors[i];
@@ -661,26 +674,6 @@ jQuery.noConflict();
                 }
 
                 resolve(false);
-
-                /*
-                let startNeighbors = borderData[startTerritoryId];
-                for (let i = 0, len = startNeighbors.length; i < len; ++i) {
-                    let curNeighbor = startNeighbors[i];
-                    if (!borderData[curNeighbor]) continue;
-
-                    inStackHash[curNeighbor] = true;
-                    pathStack.push(curNeighbor);
-
-                    if (recurse(curNeighbor, borderData, inStackHash, pathStack, pathLength)) {
-                        resolve(pathStack);
-                        return;
-                    }
-                    inStackHash[curNeighbor] = false;
-                    pathStack.pop();
-                }
-
-                resolve(false);
-                */
             });
         }
     }
