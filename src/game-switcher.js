@@ -36,6 +36,11 @@ class GameSwitcher {
         // no idea why JSON.parse is needed twice
         let activeGameData = JSON.parse(JSON.parse(activeGameDataStr));
 
+        // only show if there is more than one game to switch between
+        if (activeGameData.length <= 1) {
+            return;
+        }
+
         let $selectTarget = $container.find('select');
         if (!GAME.gameNumber) {
             $selectTarget.append('<option value="0">Select game:</option>');

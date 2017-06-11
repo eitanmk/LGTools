@@ -108,6 +108,14 @@ class EliminationPath {
             inStackHash[startTerritoryId] = true;
             pathStack.push(startTerritoryId);
 
+            if (recurse(startTerritoryId, borderData, inStackHash, pathStack, pathLength)) {
+                resolve(pathStack);
+                return;
+            }
+
+            resolve(false);
+
+            /*
             let startNeighbors = borderData[startTerritoryId];
             for (let i = 0, len = startNeighbors.length; i < len; ++i) {
                 let curNeighbor = startNeighbors[i];
@@ -125,6 +133,7 @@ class EliminationPath {
             }
 
             resolve(false);
+            */
         });
     }
 }

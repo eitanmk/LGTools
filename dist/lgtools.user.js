@@ -123,9 +123,13 @@ jQuery.noConflict();
             if (!activeGameDataStr) {
                 return;
             }
-            // fuck if i know why JSON.parse is needed twice
+            // no idea why JSON.parse is needed twice
             let activeGameData = JSON.parse(JSON.parse(activeGameDataStr));
-            console.log(activeGameData);
+
+            // only show if there is more than one game to switch between
+            if (activeGameData.length <= 1) {
+                return;
+            }
 
             let $selectTarget = $container.find('select');
             if (!GAME.gameNumber) {
@@ -651,6 +655,14 @@ jQuery.noConflict();
                 inStackHash[startTerritoryId] = true;
                 pathStack.push(startTerritoryId);
 
+                if (recurse(startTerritoryId, borderData, inStackHash, pathStack, pathLength)) {
+                    resolve(pathStack);
+                    return;
+                }
+
+                resolve(false);
+
+                /*
                 let startNeighbors = borderData[startTerritoryId];
                 for (let i = 0, len = startNeighbors.length; i < len; ++i) {
                     let curNeighbor = startNeighbors[i];
@@ -668,6 +680,7 @@ jQuery.noConflict();
                 }
 
                 resolve(false);
+                */
             });
         }
     }
