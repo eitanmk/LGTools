@@ -44,7 +44,7 @@ class GraphView {
                 left: 0,
                 width: mapWidth + 'px',
                 height: mapHeight + 'px',
-                zIndex: 100
+                zIndex: 1
             })
             .insertAfter('#m_canvas');
 
