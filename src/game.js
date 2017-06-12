@@ -2,6 +2,7 @@ class Game {
 
     constructor() {
         this.oldHandleTerritoryClick = window.handleTerritoryClick;
+        this.customTerritoryClickHandlerSet = false;
     }
 
     get players() {
@@ -47,14 +48,20 @@ class Game {
     }
 
     receiveTerritoryClick(handlerFn) {
-        return new Promise( (resolve) => {
-            window.handleTerritoryClick = (...args) => {
-                handlerFn(...args).then( () => {
-                    window.handleTerritoryClick = this.oldHandleTerritoryClick;
-                    resolve();
-                });
-            };
-        });
+        if (!this.customTerritoryClickHandlerSet) {
+            this.customTerritoryClickHandlerSet = true;
+            return new Promise( (resolve) => {
+                window.handleTerritoryClick = (...args) => {
+                    handlerFn(...args).then( () => {
+                        window.handleTerritoryClick = this.oldHandleTerritoryClick;
+                        this.customTerritoryClickHandlerSet = false;
+                        resolve();
+                    });
+                };
+            });
+        } else {
+            return Promise.reject(new Error('Territory click handler is waiting for another action.'));
+        }
     }
 
 }

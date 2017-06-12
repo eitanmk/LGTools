@@ -26,6 +26,12 @@ class EliminationPathView {
                     window.enableButton(this);
                     $el.on('click', clickHandler);
                     elimPathObj.$eliminationPathButtonText.text(originalText);
+                })
+                .catch( (ex) => {
+                    GAME.showPopup(ex.message);
+                    window.enableButton(this);
+                    $el.on('click', clickHandler);
+                    elimPathObj.$eliminationPathButtonText.text(originalText);
                 });
         };
 

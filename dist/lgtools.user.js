@@ -31,6 +31,7 @@ jQuery.noConflict();
 
         constructor() {
             this.oldHandleTerritoryClick = window.handleTerritoryClick;
+            this.customTerritoryClickHandlerSet = false;
         }
 
         get players() {
@@ -76,14 +77,20 @@ jQuery.noConflict();
         }
 
         receiveTerritoryClick(handlerFn) {
-            return new Promise( (resolve) => {
-                window.handleTerritoryClick = (...args) => {
-                    handlerFn(...args).then( () => {
-                        window.handleTerritoryClick = this.oldHandleTerritoryClick;
-                        resolve();
-                    });
-                };
-            });
+            if (!this.customTerritoryClickHandlerSet) {
+                this.customTerritoryClickHandlerSet = true;
+                return new Promise( (resolve) => {
+                    window.handleTerritoryClick = (...args) => {
+                        handlerFn(...args).then( () => {
+                            window.handleTerritoryClick = this.oldHandleTerritoryClick;
+                            this.customTerritoryClickHandlerSet = false;
+                            resolve();
+                        });
+                    };
+                });
+            } else {
+                return Promise.reject(new Error('Territory click handler is waiting for another action.'));
+            }
         }
 
     }
@@ -685,6 +692,12 @@ jQuery.noConflict();
                 elimPathObj.$eliminationPathButtonText.text('Select starting territory...');
                 GAME.receiveTerritoryClick(elimPathObj.showHamiltonianPath.bind(elimPathObj))
                     .then( () => {
+                        window.enableButton(this);
+                        $el.on('click', clickHandler);
+                        elimPathObj.$eliminationPathButtonText.text(originalText);
+                    })
+                    .catch( (ex) => {
+                        GAME.showPopup(ex.message);
                         window.enableButton(this);
                         $el.on('click', clickHandler);
                         elimPathObj.$eliminationPathButtonText.text(originalText);
