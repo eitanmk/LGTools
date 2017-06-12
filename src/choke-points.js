@@ -17,10 +17,7 @@ class ChokePoints {
 
         this.borderData = await GAME.getBorderData();
         var graphElements = await graphObj.getGraphElements();
-        this.graph = cytoscape({
-            headless: true,
-            elements: graphElements
-        });
+        this.graph = Graph.getHeadlessGraphObj(graphElements);
         this.chokePoints = await this._calculateChokePoints();
         return this.chokePoints;
     }
