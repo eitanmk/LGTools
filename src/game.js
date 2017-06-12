@@ -5,6 +5,10 @@ class Game {
         this.customTerritoryClickHandlerSet = false;
     }
 
+    get playerId() {
+        return window.beanEndUserPlayerCode;
+    }
+
     get players() {
         return window.players;
     }

@@ -1,3 +1,4 @@
+import { GAME } from './game.js';
 import { Graph } from './graph.js';
 
 class CheapestPath {
@@ -16,12 +17,14 @@ class CheapestPath {
             root: '#' + start,
             goal: '#' + end,
             weight: (edge) => {
+                if (edge.target().data().owner == GAME.playerId) {
+                    return Infinity;
+                }
                 return edge.target().data().armies;
             },
             directed: true
         });
-        console.log(route);
-        return [];
+        return route.path.nodes().map((n) => n.data().id);
     }
 
 }

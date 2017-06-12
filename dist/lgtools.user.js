@@ -34,6 +34,10 @@ jQuery.noConflict();
             this.customTerritoryClickHandlerSet = false;
         }
 
+        get playerId() {
+            return window.beanEndUserPlayerCode;
+        }
+
         get players() {
             return window.players;
         }
@@ -670,12 +674,14 @@ jQuery.noConflict();
                 root: '#' + start,
                 goal: '#' + end,
                 weight: (edge) => {
+                    if (edge.target().data().owner == GAME.playerId) {
+                        return Infinity;
+                    }
                     return edge.target().data().armies;
                 },
                 directed: true
             });
-            console.log(route);
-            return [];
+            return route.path.nodes().map((n) => n.data().id);
         }
 
     }
