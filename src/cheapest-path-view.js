@@ -1,44 +1,51 @@
 import { GAME } from './game.js';
-import { EliminationPath } from './elimination-path.js';
+//import { EliminationPath } from './elimination-path.js';
 import { UI_Utils } from './ui-utils.js';
 
-class EliminationPathView {
+class CheapestPathView {
 
     constructor() {
-        this.$eliminationPathButton = UI_Utils.makeButton('find elimination path');
-        this.$eliminationPathButtonText = this.$eliminationPathButton.find('.button_text');
+        this.$cheapestPathButton = UI_Utils.makeButton('find cheapest path');
+        this.$cheapestPathButtonText = this.$cheapestPathButton.find('.button_text');
     }
 
     getControl() {
-        var elimPathObj = this;
+        var cheapPathObj = this;
 
         let clickHandler = async function () {
-            if (elimPathObj.$graphContainer) {
-                elimPathObj.$graphContainer.remove();
+            if (cheapPathObj.$graphContainer) {
+                cheapPathObj.$graphContainer.remove();
             }
             window.disableButton(this);
             let $el = jQuery(this);
             $el.off('click');
-            let originalText = elimPathObj.$eliminationPathButtonText.text();
-            elimPathObj.$eliminationPathButtonText.text('Select starting territory...');
+            let originalText = cheapPathObj.$cheapestPathButtonText.text();
             try {
-                let clickData = await GAME.receiveTerritoryClick();
-                await elimPathObj.showHamiltonianPath(clickData.territoryId, clickData.ownerId);
+                cheapPathObj.$cheapestPathButtonText.text('Select starting territory...');
+                let { territoryId: startTerr } = await GAME.receiveTerritoryClick();
+                cheapPathObj.$cheapestPathButtonText.text('Select ending territory...');
+                let { territoryId: endTerr } = await GAME.receiveTerritoryClick();
+                cheapPathObj.showCheapestPath.call(cheapPathObj, startTerr, endTerr);
             } catch (ex) {
                 GAME.showPopup(ex.message);
             } finally {
                 window.enableButton(this);
                 $el.on('click', clickHandler);
-                elimPathObj.$eliminationPathButtonText.text(originalText);
+                cheapPathObj.$cheapestPathButtonText.text(originalText);
             }
         };
 
-        this.$eliminationPathButton.on('click', clickHandler);
+        this.$cheapestPathButton.on('click', clickHandler);
 
-        return this.$eliminationPathButton;
+        return this.$cheapestPathButton;
     }
 
-    async showHamiltonianPath(territoryId, ownerId) {
+    showCheapestPath(start, end) {
+        console.log(start, end);
+    }
+
+    /*
+    async showHamiltonianPath(territoryId, territoryName, ownerId) {
         let eliminationPathObj = new EliminationPath(null);
         let path = await eliminationPathObj.getEliminationPath(ownerId, territoryId);
 
@@ -146,7 +153,8 @@ class EliminationPathView {
             autolock: true
         });
     }
+    */
 }
 
-export let eliminationPathView = new EliminationPathView();
+export let cheapestPathView = new CheapestPathView();
 

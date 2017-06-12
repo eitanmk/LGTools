@@ -47,16 +47,16 @@ class Game {
         });
     }
 
-    receiveTerritoryClick(handlerFn) {
+    receiveTerritoryClick() {
         if (!this.customTerritoryClickHandlerSet) {
             this.customTerritoryClickHandlerSet = true;
+
             return new Promise( (resolve) => {
                 window.handleTerritoryClick = (...args) => {
-                    handlerFn(...args).then( () => {
-                        window.handleTerritoryClick = this.oldHandleTerritoryClick;
-                        this.customTerritoryClickHandlerSet = false;
-                        resolve();
-                    });
+                    window.handleTerritoryClick = this.oldHandleTerritoryClick;
+                    this.customTerritoryClickHandlerSet = false;
+                    let [ territoryId, territoryName, ownerId ] = args;
+                    resolve({ territoryId, territoryName, ownerId });
                 };
             });
         } else {

@@ -1,5 +1,6 @@
 import { graphView } from './graph-view.js';
 import { chokePointsView } from './choke-points-view.js';
+import { cheapestPathView } from './cheapest-path-view.js';
 import { eliminationPathView } from './elimination-path-view.js';
 
 class UI {
@@ -24,6 +25,7 @@ class UI {
         $anchorPoint.append($toolsContainer);
 
         let $controlInsertionPoint = $toolsContainer.find('table tr td').first();
+        $controlInsertionPoint.append(cheapestPathView.getControl());
         $controlInsertionPoint.append(eliminationPathView.getControl());
         $controlInsertionPoint.append(chokePointsView.getControl());
         $controlInsertionPoint.append(graphView.getControl());
