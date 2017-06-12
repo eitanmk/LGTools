@@ -42,7 +42,6 @@ class CheapestPathView {
     }
 
     async showCheapestPath(start, end) {
-        console.log(start, end);
         let cheapestPathObj = new CheapestPath();
         let path = await cheapestPathObj.getCheapestPath(start, end);
 
