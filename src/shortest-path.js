@@ -1,18 +1,18 @@
 import { GAME } from './game.js';
 import { Graph } from './graph.js';
 
-class CheapestPath {
+class ShortestPath {
 
-    async getCheapestPath(start, end) {
+    async getShortestPath(start, end) {
         let graphObj = new Graph();
 
         let graphElements = await graphObj.getGraphElements();
         this.graph = Graph.getHeadlessGraphObj(graphElements);
-        let path = this._calculateCheapestPath(start, end);
+        let path = this._calculateShortestPath(start, end);
         return path;
     }
 
-    _calculateCheapestPath(start, end) {
+    _calculateShortestPath(start, end) {
         let route = this.graph.elements().aStar({
             root: '#' + start,
             goal: '#' + end,
@@ -21,7 +21,7 @@ class CheapestPath {
                 if (edge.target().data().owner == GAME.playerId) {
                     return Infinity;
                 }
-                return edge.target().data().armies;
+                return 1;
             },
             directed: true
         });
@@ -30,4 +30,4 @@ class CheapestPath {
 
 }
 
-export { CheapestPath };
+export { ShortestPath };
