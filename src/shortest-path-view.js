@@ -1,6 +1,6 @@
 import { GAME } from './game.js';
 import { Graph } from './graph.js';
-import { ShortestPath } from './shortest-path.js';
+import { Paths } from './paths.js';
 import { UI_Utils } from './ui-utils.js';
 
 class ShortestPathView {
@@ -42,8 +42,13 @@ class ShortestPathView {
     }
 
     async showShortestPath(start, end) {
-        let shortestPathObj = new ShortestPath();
-        let path = await shortestPathObj.getShortestPath(start, end);
+        let path = await Paths.getPath(start, end, (edge) => {
+            // TODO: avoid teammates in team games?
+            if (edge.target().data().owner == GAME.playerId) {
+                return Infinity;
+            }
+            return 1;
+        });
 
         this.$graphContainer = Graph.getNewGraphContainer('short_path_graph');
         let graphElements = Graph.getPathElements(path);

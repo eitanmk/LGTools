@@ -1,6 +1,6 @@
 import { GAME } from './game.js';
 import { Graph } from './graph.js';
-import { CheapestPath } from './cheapest-path.js';
+import { Paths } from './paths.js';
 import { UI_Utils } from './ui-utils.js';
 
 class CheapestPathView {
@@ -42,8 +42,13 @@ class CheapestPathView {
     }
 
     async showCheapestPath(start, end) {
-        let cheapestPathObj = new CheapestPath();
-        let path = await cheapestPathObj.getCheapestPath(start, end);
+        let path = await Paths.getPath(start, end, (edge) => {
+            // TODO: avoid teammates in team games?
+            if (edge.target().data().owner == GAME.playerId) {
+                return Infinity;
+            }
+            return edge.target().data().armies;
+        });
 
         this.$graphContainer = Graph.getNewGraphContainer('cheap_path_graph');
         let graphElements = Graph.getPathElements(path);

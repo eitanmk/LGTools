@@ -658,31 +658,23 @@ jQuery.noConflict();
 
     let chokePointsView = new ChokePointsView();
 
-    class ShortestPath {
+    class Paths {
 
-        async getShortestPath(start, end) {
-            let graphObj = new Graph();
+        static async getPath(start, end, weightFn) {
+            let graph = new Graph();
 
-            let graphElements = await graphObj.getGraphElements();
-            this.graph = Graph.getHeadlessGraphObj(graphElements);
-            let path = this._calculateShortestPath(start, end);
-            return path;
-        }
+            let graphElements = await graph.getGraphElements();
+            let graphObj = Graph.getHeadlessGraphObj(graphElements);
 
-        _calculateShortestPath(start, end) {
-            let route = this.graph.elements().aStar({
+            let route = graphObj.elements().aStar({
                 root: '#' + start,
                 goal: '#' + end,
-                weight: (edge) => {
-                    // TODO: avoid teammates in team games?
-                    if (edge.target().data().owner == GAME.playerId) {
-                        return Infinity;
-                    }
-                    return 1;
-                },
+                weight: weightFn,
                 directed: true
             });
-            return route.path.nodes().map((n) => n.data().id);
+
+            let path = route.path.nodes().map((n) => n.data().id);
+            return path;
         }
 
     }
@@ -726,8 +718,13 @@ jQuery.noConflict();
         }
 
         async showShortestPath(start, end) {
-            let shortestPathObj = new ShortestPath();
-            let path = await shortestPathObj.getShortestPath(start, end);
+            let path = await Paths.getPath(start, end, (edge) => {
+                // TODO: avoid teammates in team games?
+                if (edge.target().data().owner == GAME.playerId) {
+                    return Infinity;
+                }
+                return 1;
+            });
 
             this.$graphContainer = Graph.getNewGraphContainer('short_path_graph');
             let graphElements = Graph.getPathElements(path);
@@ -739,35 +736,6 @@ jQuery.noConflict();
     }
 
     let shortestPathView = new ShortestPathView();
-
-    class CheapestPath {
-
-        async getCheapestPath(start, end) {
-            let graphObj = new Graph();
-
-            let graphElements = await graphObj.getGraphElements();
-            this.graph = Graph.getHeadlessGraphObj(graphElements);
-            let path = this._calculateCheapestPath(start, end);
-            return path;
-        }
-
-        _calculateCheapestPath(start, end) {
-            let route = this.graph.elements().aStar({
-                root: '#' + start,
-                goal: '#' + end,
-                weight: (edge) => {
-                    // TODO: avoid teammates in team games?
-                    if (edge.target().data().owner == GAME.playerId) {
-                        return Infinity;
-                    }
-                    return edge.target().data().armies;
-                },
-                directed: true
-            });
-            return route.path.nodes().map((n) => n.data().id);
-        }
-
-    }
 
     class CheapestPathView {
 
@@ -808,8 +776,13 @@ jQuery.noConflict();
         }
 
         async showCheapestPath(start, end) {
-            let cheapestPathObj = new CheapestPath();
-            let path = await cheapestPathObj.getCheapestPath(start, end);
+            let path = await Paths.getPath(start, end, (edge) => {
+                // TODO: avoid teammates in team games?
+                if (edge.target().data().owner == GAME.playerId) {
+                    return Infinity;
+                }
+                return edge.target().data().armies;
+            });
 
             this.$graphContainer = Graph.getNewGraphContainer('cheap_path_graph');
             let graphElements = Graph.getPathElements(path);
