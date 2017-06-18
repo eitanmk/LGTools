@@ -27,7 +27,7 @@ module.exports = function (grunt) {
 
     grunt.registerTask('lint', 'eslint');
     grunt.registerTask('default', 'build');
-    grunt.registerTask('build', ['lint', 'rollup', 'prepend']);
+    grunt.registerTask('build', ['rollup', 'prepend']);
     grunt.registerTask('prepend', function () {
         var headerTemplate = grunt.file.read('header.template.js');
         var headerText = grunt.template.process(headerTemplate, grunt.config('pkg'));
