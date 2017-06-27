@@ -23,7 +23,8 @@ class CheapestPathView {
             let originalText = cheapPathObj.$cheapestPathButtonText.text();
             try {
                 cheapPathObj.$cheapestPathButtonText.text('Select starting territory...');
-                let { territoryId: startTerr } = await GAME.receiveTerritoryClick();
+                let { territoryId: startTerr, ownerId } = await GAME.receiveTerritoryClick();
+                this.playerOnStartTerr = ownerId;
                 cheapPathObj.$cheapestPathButtonText.text('Select ending territory...');
                 let { territoryId: endTerr } = await GAME.receiveTerritoryClick();
                 await cheapPathObj.showCheapestPath.call(cheapPathObj, startTerr, endTerr);
@@ -44,7 +45,7 @@ class CheapestPathView {
     async showCheapestPath(start, end) {
         let path = await Paths.getPath(start, end, (edge) => {
             // TODO: avoid teammates in team games?
-            if (edge.target().data().owner == GAME.playerId) {
+            if (edge.target().data().owner == this.playerOnStartTerr) {
                 return Infinity;
             }
             return edge.target().data().armies;

@@ -23,7 +23,8 @@ class ShortestPathView {
             let originalText = shortPathObj.$shortestPathButtonText.text();
             try {
                 shortPathObj.$shortestPathButtonText.text('Select starting territory...');
-                let { territoryId: startTerr } = await GAME.receiveTerritoryClick();
+                let { territoryId: startTerr, ownerId } = await GAME.receiveTerritoryClick();
+                this.playerOnStartTerr = ownerId;
                 shortPathObj.$shortestPathButtonText.text('Select ending territory...');
                 let { territoryId: endTerr } = await GAME.receiveTerritoryClick();
                 await shortPathObj.showShortestPath.call(shortPathObj, startTerr, endTerr);
@@ -44,7 +45,7 @@ class ShortestPathView {
     async showShortestPath(start, end) {
         let path = await Paths.getPath(start, end, (edge) => {
             // TODO: avoid teammates in team games?
-            if (edge.target().data().owner == GAME.playerId) {
+            if (edge.target().data().owner == this.playerOnStartTerr) {
                 return Infinity;
             }
             return 1;
