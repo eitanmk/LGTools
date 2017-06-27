@@ -24,7 +24,7 @@ class ShortestPathView {
             try {
                 shortPathObj.$shortestPathButtonText.text('Select starting territory...');
                 let { territoryId: startTerr, ownerId } = await GAME.receiveTerritoryClick();
-                this.playerOnStartTerr = ownerId;
+                shortPathObj.playerOnStartTerr = ownerId;
                 shortPathObj.$shortestPathButtonText.text('Select ending territory...');
                 let { territoryId: endTerr } = await GAME.receiveTerritoryClick();
                 await shortPathObj.showShortestPath.call(shortPathObj, startTerr, endTerr);

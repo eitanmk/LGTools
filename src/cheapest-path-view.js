@@ -24,7 +24,7 @@ class CheapestPathView {
             try {
                 cheapPathObj.$cheapestPathButtonText.text('Select starting territory...');
                 let { territoryId: startTerr, ownerId } = await GAME.receiveTerritoryClick();
-                this.playerOnStartTerr = ownerId;
+                cheapPathObj.playerOnStartTerr = ownerId;
                 cheapPathObj.$cheapestPathButtonText.text('Select ending territory...');
                 let { territoryId: endTerr } = await GAME.receiveTerritoryClick();
                 await cheapPathObj.showCheapestPath.call(cheapPathObj, startTerr, endTerr);
