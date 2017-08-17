@@ -123,9 +123,8 @@ jQuery.noConflict();
             if (!activeGameDataStr) {
                 return;
             }
-            // fuck if i know why JSON.parse is needed twice
+            // no idea why JSON.parse is needed twice
             let activeGameData = JSON.parse(JSON.parse(activeGameDataStr));
-            console.log(activeGameData);
 
             let $selectTarget = $container.find('select');
             if (!GAME.gameNumber) {

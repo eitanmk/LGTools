@@ -6,7 +6,7 @@
   "repository": "https://github.com/eitanmk/LGTools.git",
   "devDependencies": {
     "grunt": "^1.0.1",
-    "grunt-eslint": "^19.0.0",
-    "grunt-rollup": "^1.0.1"
+    "grunt-eslint": "^20.0.0",
+    "grunt-rollup": "^3.2.0"
   }
 }
