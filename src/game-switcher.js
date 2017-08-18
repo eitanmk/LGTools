@@ -22,19 +22,19 @@ class GameSwitcher {
         // remove the purchase nag if it's there. i want the space
         jQuery('#ConsiderPurchase').remove();
 
-        let $container = jQuery('<div><select></select></div>').css({
-            position: 'absolute',
-            top: '35px',
-            left: '500px',
-            zIndex: 11
-        }).appendTo('body');
-
         let activeGameDataStr = window.localStorage.getItem(this.storageKey);
         if (!activeGameDataStr) {
             return;
         }
         // no idea why JSON.parse is needed twice
         let activeGameData = JSON.parse(JSON.parse(activeGameDataStr));
+
+        let $container = jQuery('<div><select></select></div>').css({
+            position: 'absolute',
+            top: '35px',
+            left: '500px',
+            zIndex: 11
+        }).appendTo('body');
 
         let $selectTarget = $container.find('select');
         if (!GAME.gameNumber) {
