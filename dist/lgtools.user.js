@@ -110,7 +110,7 @@ jQuery.noConflict();
         updateActiveGames() {
             // should only run on /Home
             let activeGameData = [];
-            jQuery('[id^=game_div_].gb_hl, [id^=game_div_].gb_n').each( function () {
+            jQuery('[id^=game_div_].gb_hl, [id^=game_div_].gb_n, [id^=game_div_].gb_g').each( function () {
                 let gameId = this.id.match(/game_div_(\d+)/)[1];
                 let gameName = jQuery(this).find('.gamename a').text();
 
@@ -123,13 +123,6 @@ jQuery.noConflict();
             // remove the purchase nag if it's there. i want the space
             jQuery('#ConsiderPurchase').remove();
 
-            let $container = jQuery('<div><select></select></div>').css({
-                position: 'absolute',
-                top: '35px',
-                left: '500px',
-                zIndex: 11
-            }).appendTo('body');
-
             let activeGameDataStr = window.localStorage.getItem(this.storageKey);
             if (!activeGameDataStr) {
                 return;
@@ -141,6 +134,13 @@ jQuery.noConflict();
             if (activeGameData.length <= 1) {
                 return;
             }
+
+            let $container = jQuery('<div><select></select></div>').css({
+                position: 'absolute',
+                top: '35px',
+                left: '500px',
+                zIndex: 11
+            }).appendTo('body');
 
             let $selectTarget = $container.find('select');
             if (!GAME.gameNumber) {
